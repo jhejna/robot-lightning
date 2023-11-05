@@ -1,15 +1,15 @@
-import numpy as np
-from typing import Dict, Optional, Union, Type
-import gym
 import time
 from abc import abstractmethod, abstractproperty
+from typing import Dict, List, Optional, Type, Union
+
 import cv2
-from typing import List
+import gym
+import numpy as np
 
 NEW_GYM_API = False if gym.__version__ < "0.26.1" else True
 
-class Controller(object):
 
+class Controller(object):
     @abstractproperty
     def observation_space(self):
         raise NotImplementedError
@@ -52,8 +52,8 @@ def precise_wait(t_end: float, slack_time: float = 0.001):
         while time.time() < t_end:
             pass
 
-class Camera(object):
 
+class Camera(object):
     @abstractmethod
     def get_frame(self) -> np.ndarray:
         pass
@@ -62,9 +62,9 @@ class Camera(object):
     def close(self):
         pass
 
-class OpenCVCamera(Camera):
 
-    def __init__(self, cap, width: int=64, height: int=64):
+class OpenCVCamera(Camera):
+    def __init__(self, cap, width: int = 64, height: int = 64):
         self._width = width
         self._height = height
         self._cap = cap
@@ -76,9 +76,9 @@ class OpenCVCamera(Camera):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         return img
 
-class RealSenseCamera(Camera):
 
-    def __init__(self, device, width: int=64, height: int=64):
+class RealSenseCamera(Camera):
+    def __init__(self, device, width: int = 64, height: int = 64):
         import pyrealsense2 as rs
 
         self._pipeline = rs.pipeline()
@@ -86,7 +86,7 @@ class RealSenseCamera(Camera):
         self._width, self._height = width, height
         config = rs.config()
         config.enable_device(self._serial_number)
-        config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)            
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
         self._pipeline.start(config)
 
     def get_frame(self) -> np.ndarray:
@@ -102,6 +102,7 @@ class RobotEnv(gym.Env):
     """
     A simple Gym Environment for controlling robots.
     """
+
     def __init__(
         self,
         controller_class: Union[str, Type[Controller]],
@@ -110,12 +111,12 @@ class RobotEnv(gym.Env):
         control_hz: float = 10.0,
         img_width: int = 224,
         img_height: int = 224,
-        cameras: List[str] = ["agent", "wrist"],
+        cameras: List[str] = ("agent", "wrist"),
         channels_last: bool = True,
         horizon: int = 500,
     ):
         self.random_init = random_init
-        controller_class = None # TODO figure out how to import elegantly.
+        controller_class = None  # TODO figure out how to import elegantly.
         self.controller = controller_class(**({} if controller_kwargs is None else controller_kwargs))
         # Add the action space limits.
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=self.controller.action_space.shape, dtype=np.float32)
@@ -128,6 +129,7 @@ class RobotEnv(gym.Env):
 
         try:
             import pyrealsense2 as rs
+
             context = rs.context()
             camera_objects.extend([RealSenseCamera(device) for device in list(context.devices)])
         except ImportError:

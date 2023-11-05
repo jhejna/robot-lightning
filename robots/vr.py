@@ -1,7 +1,8 @@
-from oculus_reader.reader import OculusReader
 import threading
-import numpy as np
 import time
+
+import numpy as np
+from oculus_reader.reader import OculusReader
 from scipy.spatial.transform import Rotation as R
 
 
@@ -9,16 +10,20 @@ def cross_product(vec1, vec2):
     mat = np.array(([0, -vec1[2], vec1[1]], [vec1[2], 0, -vec1[0]], [-vec1[1], vec1[0], 0]))
     return np.dot(mat, vec2)
 
+
 def rmat_to_quat(rot_mat, degrees=False):
     quat = R.from_matrix(rot_mat).as_quat()
     return quat
+
 
 def quat_diff(target, source):
     result = R.from_quat(target) * R.from_quat(source).inv()
     return result.as_quat()
 
+
 def quat2mat(quat):
     return R.from_quat(quat).as_matrix()
+
 
 def quat_multiply(quaternion1, quaternion0):
     """Return multiplication of two quaternions.
@@ -37,6 +42,7 @@ def quat_multiply(quaternion1, quaternion0):
         ],
         axis=-1,
     )
+
 
 def axisangle2quat(vec):
     """
@@ -65,6 +71,7 @@ def axisangle2quat(vec):
 
     return q.reshape([*front_shape, 4])
 
+
 def quat2axisangle(quat):
     """
     Converts quaternion to axis-angle format.
@@ -84,6 +91,7 @@ def quat2axisangle(quat):
     scale = np.divide(1.0, den, out=np.zeros_like(den), where=~zero_cond)
 
     return (quat[..., :3] * 2.0 * np.arccos(quat[..., 3])) * scale
+
 
 def orientation_error(desired, current):
     """
@@ -106,20 +114,22 @@ def run_threaded_command(command, args=(), daemon=True):
 
     return thread
 
-class VRController(object):
-    def __init__(self,
-                right_controller: bool = True,
-                max_lin_vel: float = 1,
-                max_rot_vel: float = 1,
-                max_gripper_vel: float = 1,
-                spatial_coeff: float = 1,
-                pos_action_gain: float = 0.25,
-                rot_action_gain: float = 0.5,
-                gripper_action_gain: float = 1,
-                min_magnitude: float = 0,
-                control_hz=10,
-                robot_orientation="gripper_in_front"):
 
+class VRController(object):
+    def __init__(
+        self,
+        right_controller: bool = True,
+        max_lin_vel: float = 1,
+        max_rot_vel: float = 1,
+        max_gripper_vel: float = 1,
+        spatial_coeff: float = 1,
+        pos_action_gain: float = 0.25,
+        rot_action_gain: float = 0.5,
+        gripper_action_gain: float = 1,
+        min_magnitude: float = 0,
+        control_hz=10,
+        robot_orientation="gripper_in_front",
+    ):
         self.oculus_reader = OculusReader()
         self.vr_to_global_mat = np.eye(4)
         self.max_lin_vel = max_lin_vel
@@ -149,7 +159,6 @@ class VRController(object):
         self.reset_state()
 
         run_threaded_command(self._update_internal_state)
-
 
     def reset_state(self):
         self._state = {
@@ -201,7 +210,6 @@ class VRController(object):
                     self.vr_to_global_mat = np.linalg.inv(rot_mat)
                 except np.linalg.LinAlgError:
                     pass
-
 
     def _process_reading(self):
         rot_mat = np.asarray(self._state["poses"][self.controller_id])

@@ -1,19 +1,21 @@
-import zerorpc
-import torch
-import numpy as np
-import gym
 from functools import cached_property
+
+import gym
+import numpy as np
+import torch
+import zerorpc
 from scipy.spatial.transform import Rotation
 
 try:
     from polymetis import GripperInterface, RobotInterface
+
     POLYMETIS_IMPORTED = True
 except ImportError:
     print("[research] Skipping polymetis, package not found")
     POLYMETIS_IMPORTED = False
 
-class PolyMetisController(object):
 
+class PolyMetisController(object):
     # Define the bounds for the Franka Robot
     EE_LOW = np.array([0.1, -0.4, -0.05, -np.pi, -np.pi, -np.pi], dtype=np.float32)
     EE_HIGH = np.array([1.0, 0.4, 1.0, 1.0, np.pi, np.pi, np.pi], dtype=np.float32)  # np.pi at end
@@ -21,7 +23,9 @@ class PolyMetisController(object):
     JOINT_HIGH = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159], dtype=np.float32)
     HOME = np.array([0.0, -np.pi / 4.0, 0.0, -3.0 * np.pi / 4.0, 0.0, np.pi / 2.0, np.pi / 4.0], dtype=np.float32)
 
-    def __init__(self, ip_address:str ="localhost", controller_type:str="CARTESIAN_POSITION", max_delta:float=0.05):
+    def __init__(
+        self, ip_address: str = "localhost", controller_type: str = "CARTESIAN_POSITION", max_delta: float = 0.05
+    ):
         self.ip_address = ip_address
         self.controller_type = controller_type
         assert controller_type in {"CARTESIAN_IMPEDANCE", "JOINT_IMPEDANCE", "CARTESIAN_DELTA", "JOINT_DELTA"}
@@ -89,7 +93,6 @@ class PolyMetisController(object):
 
         return self._gripper
 
-
     def update_gripper(self, gripper_action, blocking=False):
         # We always run the gripper in absolute position
         # self.gripper.get_state()
@@ -131,7 +134,7 @@ class PolyMetisController(object):
             raise ValueError("Invalid Controller type provided")
         # Update the gripper
         self.update_gripper(gripper_action, blocking=False)
-        
+
     def get_state(self):
         """
         Returns the robot state dictionary.
@@ -178,13 +181,12 @@ class PolyMetisController(object):
 
 
 if __name__ == "__main__":
-    import subprocess
     import argparse
+    import subprocess
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--gripper", type=str, help="Gripper type")
     args = parser.parse_args()
-
 
     if POLYMETIS_IMPORTED:
         # Start the gripper and controller processes
@@ -192,15 +194,17 @@ if __name__ == "__main__":
 
         # Kill any existing servers
 
-
         process = subprocess.Popen(
-            "echo " + sudo_pw + " | sudo -S " + "bash "  "/launch_robot.sh", stdout=subprocess.PIPE, stdin=subprocess.PIPE, shell=True, executable="/bin/bash", encoding="utf8"
+            "echo " + sudo_pw + " | sudo -S " + "bash /launch_robot.sh",
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            shell=True,
+            executable="/bin/bash",
+            encoding="utf8",
         )
-        
 
     # Then launch the controller.
     client = PolyMetisController()
     s = zerorpc.Server(client)
     s.bind("tcp://0.0.0.0:4242")
     s.run()
-

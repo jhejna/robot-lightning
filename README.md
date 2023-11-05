@@ -7,4 +7,3 @@ This is accompanying code for the research-lightning[https://github.com/jhejna/r
 
 
 ## Polymetis
-

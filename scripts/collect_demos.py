@@ -1,13 +1,13 @@
-
-
 import argparse
-import robots
-from typing import Tuple, Iterable, Dict
-import numpy as np
-import gym
+import datetime
 import io
 import os
-import datetime
+from typing import Dict, Iterable, Tuple
+
+import gym
+import numpy as np
+
+import robots
 
 NEW_GYM_API = False if gym.__version__ < "0.26.1" else True
 
@@ -16,6 +16,7 @@ NEW_GYM_API = False if gym.__version__ < "0.26.1" else True
 Script for collecting demos.
 To be run on the workstation.
 """
+
 
 def parse_var(s: str) -> Tuple[str]:
     """
@@ -41,6 +42,7 @@ def parse_vars(items: Iterable) -> Dict:
             d[key] = value
     return d
 
+
 def append(lst, item):
     # This takes in a nested list structure and appends everything from item to the nested list structure.
     # It will require lst to have the complete set of keys -- if keys are in item but not in lst,
@@ -52,7 +54,8 @@ def append(lst, item):
     else:
         lst.append(item)
 
-def save_episode(episode: Dict, path: str, enforce_length:bool=True) -> None:
+
+def save_episode(episode: Dict, path: str, enforce_length: bool = True) -> None:
     # Flatten the dict for saving as a numpy array.
     data = dict()
     for k in episode.keys():
@@ -91,16 +94,20 @@ def save_episode(episode: Dict, path: str, enforce_length:bool=True) -> None:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to save demonstrations.")
     parser.add_argument("--horizon", type=int, default=200, help="episode horizon")
     parser.add_argument("--width", type=int, default=128, help="Image width")
     parser.add_argument("--height", type=int, default=128, help="Image height")
-    parser.add_argument("--cameras", nargs='+', default=[], help="Cameras connected to the workstation.")
+    parser.add_argument("--cameras", nargs="+", default=[], help="Cameras connected to the workstation.")
     parser.add_argument("--control-hz", type=float, default=10.0, help="Control Hz")
-    parser.add_argument("--controller", type=str, default="ZeroRPCController", default="Controller Class to use")
-    parser.add_argument("--lightning-format", type=int, default=1, default="Whether or not to save demos compatible with research-lightning")
+    parser.add_argument("--controller", type=str, default="ZeroRPCController", help="Controller Class to use")
+    parser.add_argument(
+        "--lightning-format",
+        type=int,
+        default=1,
+        help="Whether or not to save demos compatible with research-lightning",
+    )
     parser.add_argument(
         "--controller-kwargs",
         metavar="KEY=VALUE",
@@ -122,29 +129,51 @@ if __name__ == "__main__":
     controller_kwargs = dict(controller_type="CARTESIAN_DELTA")
     controller_kwargs.update(parse_vars(args.controller_kwargs))
 
-    vr_kwargs = dict(pos_action_gain=3.0, rot_action_gain=1.0, gripper_action_gain=1.0, min_magnitude=0.15, robot_orientation="gripper_on_left")
+    vr_kwargs = dict(
+        pos_action_gain=3.0,
+        rot_action_gain=1.0,
+        gripper_action_gain=1.0,
+        min_magnitude=0.15,
+        robot_orientation="gripper_on_left",
+    )
     vr_kwargs.update(parse_vars(args.vr_kwargs))
 
     controller = vars(robots)[args.controller](parse_vars(args.controller_kwargs))
-    env = robots.RobotEnv(random_init=True, img_width=args.width, img_height=args.height, control_hz=args.control_hz, cameras=args.cameras, horizon=args.horizon)
-    vr = robots.VRController(pos_action_gain=3.0, rot_action_gain=1.0, gripper_action_gain=1.0, min_magnitude=0.15, robot_orientation="gripper_on_left")
+    env = robots.RobotEnv(
+        random_init=True,
+        img_width=args.width,
+        img_height=args.height,
+        control_hz=args.control_hz,
+        cameras=args.cameras,
+        horizon=args.horizon,
+    )
+    vr = robots.VRController(
+        pos_action_gain=3.0,
+        rot_action_gain=1.0,
+        gripper_action_gain=1.0,
+        min_magnitude=0.15,
+        robot_orientation="gripper_on_left",
+    )
 
     num_episodes = 0
     while True:
         done = False
 
         if args.lightning_format:
-            episode= dict(
-                obs={k: [] for k, v in env.observation_space.keys()}, 
+            episode = dict(
+                obs={k: [] for k, v in env.observation_space.keys()},
                 action=[env.action_space.sample()],
                 reward=[0.0],
                 done=[False],
                 discount=[1.0],
-                )
+            )
         else:
-            episode= dict(
-                obs={k: [] for k, v in env.observation_space.keys()}, 
-                action=[], reward=[], done=[], discount=[],
+            episode = dict(
+                obs={k: [] for k, v in env.observation_space.keys()},
+                action=[],
+                reward=[],
+                done=[],
+                discount=[],
             )
 
         if NEW_GYM_API:
@@ -165,7 +194,7 @@ if __name__ == "__main__":
                     terminated = False
 
             controller_info = vr.get_info()
-            done = done or controller_info['user_set_success'] or controller_info['user_set_failure']
+            done = done or controller_info["user_set_success"] or controller_info["user_set_failure"]
             discount = 1.0 - float(terminated)
 
             append(episode, dict(obs=obs, action=action, reward=reward, done=done, discount=discount))
