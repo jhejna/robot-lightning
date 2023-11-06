@@ -111,7 +111,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--controller-kwargs",
         metavar="KEY=VALUE",
-        nargs="+",
         action="append",
         help="Set kv pairs used as args for the controller class.",
     )
@@ -119,14 +118,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--vr-kwargs",
         metavar="KEY=VALUE",
-        nargs="+",
         action="append",
         help="Set kv pairs used as args for the controller class.",
     )
 
     args = parser.parse_args()
-
-    controller_kwargs = dict(controller_type="CARTESIAN_DELTA")
+    controller_kwargs = dict() # In case we want to add default controller kwargs.
     controller_kwargs.update(parse_vars(args.controller_kwargs))
 
     vr_kwargs = dict(
@@ -138,8 +135,9 @@ if __name__ == "__main__":
     )
     vr_kwargs.update(parse_vars(args.vr_kwargs))
 
-    controller = vars(robots)[args.controller](parse_vars(args.controller_kwargs))
     env = robots.RobotEnv(
+        controller_class=args.controller,
+        controller_kwargs=controller_kwargs,
         random_init=True,
         img_width=args.width,
         img_height=args.height,

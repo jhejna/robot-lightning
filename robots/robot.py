@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Type, Union
 import cv2
 import gym
 import numpy as np
+import robots
 
 NEW_GYM_API = False if gym.__version__ < "0.26.1" else True
 
@@ -116,7 +117,7 @@ class RobotEnv(gym.Env):
         horizon: int = 500,
     ):
         self.random_init = random_init
-        controller_class = None  # TODO figure out how to import elegantly.
+        controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class # TODO figure out how to import elegantly.
         self.controller = controller_class(**({} if controller_kwargs is None else controller_kwargs))
         # Add the action space limits.
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=self.controller.action_space.shape, dtype=np.float32)

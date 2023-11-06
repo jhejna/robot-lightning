@@ -34,7 +34,6 @@ class PolyMetisController(object):
         self._robot = None
         self._gripper = None
 
-    @cached_property
     def observation_space(self):
         return gym.spaces.Dict(
             {
@@ -48,7 +47,6 @@ class PolyMetisController(object):
             }
         )
 
-    @cached_property
     def action_space(self):
         if self.controller_type == "JOINT_IMPEDANCE":
             low, high = self.JOINT_LOW, self.JOINT_HIGH
@@ -194,14 +192,14 @@ if __name__ == "__main__":
 
         # Kill any existing servers
 
-        process = subprocess.Popen(
-            "echo " + sudo_pw + " | sudo -S " + "bash /launch_robot.sh",
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            shell=True,
-            executable="/bin/bash",
-            encoding="utf8",
-        )
+        # process = subprocess.Popen(
+        #     "echo " + sudo_pw + " | sudo -S " + "bash /launch_robot.sh",
+        #     stdout=subprocess.PIPE,
+        #     stdin=subprocess.PIPE,
+        #     shell=True,
+        #     executable="/bin/bash",
+        #     encoding="utf8",
+        # )
 
     # Then launch the controller.
     client = PolyMetisController()

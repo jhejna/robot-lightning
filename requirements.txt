@@ -1,0 +1,5 @@
+zerorpc
+gym
+opencv-python
+scipy
+numpy

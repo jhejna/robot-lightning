@@ -11,12 +11,13 @@ class ZeroRPCController(Controller):
     2. R2D2 (it natively does something like this to get over the woes of polymetis.)
     """
 
-    def __init__(self, ip_address: str = "127.0.0.1", port: int = 4242):
+    def __init__(self, ip_address: str = "127.16.0.1", port: int = 4242):
         self.ip_address = ip_address
         self.server = zerorpc.Client(heartbeat=20)
         self.server.connect("tcp://" + self.ip_address + ":" + str(port))
-        self._observation_space = self.server.observation_space
-        self._action_space = self.server.observation_space
+        self._observation_space = self.server.observation_space()
+        print(self._observation_space)
+        self._action_space = self.server.action_space
 
     @property
     def observation_space(self):
