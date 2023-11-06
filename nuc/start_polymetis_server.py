@@ -202,30 +202,11 @@ if __name__ == "__main__":
     import subprocess
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--gripper", type=str, help="Gripper type")
+    parser.add_argument("--controller-type", type=str, default="CARTESIAN_DELTA", help="controller type")
     args = parser.parse_args()
 
-    if POLYMETIS_IMPORTED:
-        # Start the gripper and controller processes
-        sudo_pw = input("What is the sudo password? ")
-
-        # Get the monometis launch path
-        polymetis_path = os.path.dirname(os.path.realpath(polymetis.__file__))
-        monometis_launcher_path = os.path.join(os.path.dirname(polymetis_path), "../../../launcher")
-
-        cmd_str = "cd " + monometis_launcher_path + ";" 
-        robot_cmd = cmd_str + "echo " + sudo_pw + " | sudo -S pkill -9 run_server; echo " + sudo_pw + " | sudo ./launch_robot.sh"
-        robot_process = subprocess.Popen(
-            robot_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, shell=True, executable="/bin/bash", encoding="utf8"
-        )
-
-        gripper_cmd = cmd_str + "echo " + sudo_pw + " | sudo -S pkill -9 gripper; echo " + sudo_pw + " | sudo ./launch_gripper.sh"
-        gripper_process = subprocess.Popen(
-            gripper_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, shell=True, executable="/bin/bash", encoding="utf8"
-        )
-
     # Then launch the controller.
-    client = PolyMetisController()
+    client = PolyMetisController(controller_type=args.controller_type)
     s = zerorpc.Server(client)
     s.bind("tcp://0.0.0.0:4242")
     s.run()

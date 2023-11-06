@@ -136,7 +136,7 @@ class RobotEnv(gym.Env):
         except ImportError:
             print("Warning: pyrealsense2 package not found")
 
-        assert len(camera_objects) == len(cameras), "Found a different number of connected cameras than in `cameras`."
+        assert len(camera_objects) == len(cameras), "Found " + str(len(camera_objects)) + " connected cameras, but `cameras` was " + str(cameras)
 
         self.cameras = {k: v for k, v in zip(cameras, camera_objects)}
 

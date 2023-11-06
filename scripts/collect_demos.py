@@ -2,7 +2,7 @@ import argparse
 import datetime
 import io
 import os
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Tuple, Any
 
 import gym
 import numpy as np
@@ -54,16 +54,36 @@ def append(lst, item):
     else:
         lst.append(item)
 
+def _flatten_dict_helper(flat_dict: Dict, value: Any, prefix: str, separator: str = ".") -> None:
+    if isinstance(value, (dict, gym.spaces.Dict)):
+        for k in value.keys():
+            assert isinstance(k, str), "Can only flatten dicts with str keys"
+            _flatten_dict_helper(flat_dict, value[k], prefix + separator + k, separator=separator)
+    else:
+        flat_dict[prefix[1:]] = value
 
-def save_episode(episode: Dict, path: str, enforce_length: bool = True) -> None:
+
+def flatten_dict(d: Dict, separator: str = ".") -> Dict:
+    flat_dict = dict()
+    _flatten_dict_helper(flat_dict, d, "", separator=separator)
+    return flat_dict
+
+def nest_dict(d: Dict, separator: str = ".") -> Dict:
+    nested_d = dict()
+    for key in d.keys():
+        key_parts = key.split(separator)
+        current_d = nested_d
+        while len(key_parts) > 1:
+            if key_parts[0] not in current_d:
+                current_d[key_parts[0]] = dict()
+            current_d = current_d[key_parts[0]]
+            key_parts.pop(0)
+        current_d[key_parts[0]] = d[key]  # Set the value
+    return nested_d
+
+def save_episode(data: Dict, path: str, enforce_length: bool = True) -> None:
     # Flatten the dict for saving as a numpy array.
-    data = dict()
-    for k in episode.keys():
-        if k == "obs":
-            for obs_key in episode[k].keys():
-                data[k + "." + obs_key] = episode[k][obs_key]
-        else:
-            data[k] = episode[k]
+    data = flatten_dict(data)
 
     # Format everything into numpy in case it was saved as a list
     for k in data.keys():
@@ -154,13 +174,14 @@ if __name__ == "__main__":
         robot_orientation="gripper_on_left",
     )
 
+    os.makedirs(args.path, exist_ok=True)
+
     num_episodes = 0
     while True:
         done = False
 
         if args.lightning_format:
             episode = dict(
-                obs={k: [] for k in env.observation_space.keys()},
                 action=[env.action_space.sample()],
                 reward=[0.0],
                 done=[False],
@@ -168,12 +189,12 @@ if __name__ == "__main__":
             )
         else:
             episode = dict(
-                obs={k: [] for k in env.observation_space.keys()},
                 action=[],
                 reward=[],
                 done=[],
                 discount=[],
             )
+        episode["obs"] = nest_dict({k: [] for k in flatten_dict(env.observation_space).keys()})
 
         if NEW_GYM_API:
             obs, info = env.reset()
@@ -181,7 +202,7 @@ if __name__ == "__main__":
             obs = env.reset()
 
         append(episode, dict(obs=obs))
-
+        print("[robots] Start episode.")
         while not done:
             action = vr.predict(obs)
 
@@ -208,7 +229,7 @@ if __name__ == "__main__":
         ep_filename = f"{ts}_{num_episodes}_{ep_len}.npz"
         save_episode(episode, os.path.join(args.path, ep_filename), enforce_length=args.lightning_format)
 
-        to_break = input("Quit (q)?")
+        to_break = input("[robots] Quit (q)?")
         if to_break == "q":
             break
 
