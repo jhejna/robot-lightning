@@ -1,6 +1,6 @@
 # Robot Lightning
 
-This is accompanying code for the research-lightning[https://github.com/jhejna/research-lightning] repository. It provides a number of different robot controllers which interface with the robot environments in research lightning.
+This is accompanying code for the (research-lightning)[https://github.com/jhejna/research-lightning] repository. It provides a number of different robot controllers which interface with the robot environments in research lightning.
 
 
 ## Desktop Setup
@@ -53,15 +53,6 @@ python nuc/start_polymetis_server.py
 ```
 from the the NUC.
 
-
-#!/bin/bash
-tmux new-session -s "monometis" -d
-tmux split-window -h
-tmux send-keys -t 0 'echo robotics | sudo -S pkill -9 run_server; conda activate monometis;cd ~/monometis/launcher; ./launch_robotiq_robot.sh' Enter
-tmux send-keys -t 0 'robotics' Enter
-tmux send-keys -t 1 'conda activate monometis;cd ~/monometis/launcher; ./launch_robotiq_gripper.sh' Enter
-tmux select-pane -t 0
-tmux -2 attach-session -d
 
 ## Example Scripts
 
