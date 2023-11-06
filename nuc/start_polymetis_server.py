@@ -33,7 +33,7 @@ class PolyMetisController(object):
     HOME = np.array([0.0, -np.pi / 4.0, 0.0, -3.0 * np.pi / 4.0, 0.0, np.pi / 2.0, np.pi / 4.0], dtype=np.float32)
 
     def __init__(
-        self, ip_address: str = "localhost", controller_type: str = "CARTESIAN_IMPEDANCE", max_delta: float = 0.05
+        self, ip_address: str = "localhost", controller_type: str = "CARTESIAN_DELTA", max_delta: float = 0.05
     ):
         self.ip_address = ip_address
         self.controller_type = controller_type
@@ -129,7 +129,7 @@ class PolyMetisController(object):
             self.robot.update_desired_joint_positions(torch.from_numpy(robot_action))
         elif self.controller_type == "CARTESIAN_IMPEDANCE":
             pos, ori = robot_action[:3], Rotation.from_euler("xyz", robot_action[3:]).as_quat()
-            self.robot.update_desired_ee_pose(torch.from_numpy(pos), torch.from_numpy(ori))
+            self.robot.update_desired_ee_pose(torch.from_numpy(pos).float(), torch.from_numpy(ori).float())
         elif self.controller_type == "JOINT_DELTA":
             new_joint_positions = self.state["joint_positions"] + robot_action
             new_joint_positions = np.clip(new_joint_positions, self.JOINT_LOW, self.JOINT_HIGH)
