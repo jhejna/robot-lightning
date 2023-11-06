@@ -49,7 +49,7 @@ def append(lst, item):
     # they will not be appended.
     if isinstance(lst, dict):
         assert isinstance(item, dict)
-        for k in lst.keys():
+        for k in item.keys():
             append(lst[k], item[k])
     else:
         lst.append(item)
@@ -81,6 +81,7 @@ def save_episode(episode: Dict, path: str, enforce_length: bool = True) -> None:
                 dtype = np.int64
             data[k] = np.array(data[k], dtype=dtype)
         else:
+            print(data[k])
             raise ValueError("Unsupported type passed to `save_data`.")
 
     if enforce_length:
@@ -159,7 +160,7 @@ if __name__ == "__main__":
 
         if args.lightning_format:
             episode = dict(
-                obs={k: [] for k, v in env.observation_space.keys()},
+                obs={k: [] for k in env.observation_space.keys()},
                 action=[env.action_space.sample()],
                 reward=[0.0],
                 done=[False],
@@ -167,7 +168,7 @@ if __name__ == "__main__":
             )
         else:
             episode = dict(
-                obs={k: [] for k, v in env.observation_space.keys()},
+                obs={k: [] for k in env.observation_space.keys()},
                 action=[],
                 reward=[],
                 done=[],
@@ -184,18 +185,22 @@ if __name__ == "__main__":
         while not done:
             action = vr.predict(obs)
 
-            if action is not None:
-                if NEW_GYM_API:
-                    obs, reward, done, terminated, info = env.step(action)
-                else:
-                    obs, reward, done, info = env.step(action)
-                    terminated = False
+            if action is None:
+                continue
 
+            if NEW_GYM_API:
+                obs, reward, done, terminated, info = env.step(action)
+            else:
+                obs, reward, done, info = env.step(action)
+                terminated = False
+            
             controller_info = vr.get_info()
             done = done or controller_info["user_set_success"] or controller_info["user_set_failure"]
             discount = 1.0 - float(terminated)
 
             append(episode, dict(obs=obs, action=action, reward=reward, done=done, discount=discount))
+
+        print("[robots] Finished episode.")
 
         ep_len = len(episode["done"])
         num_episodes += 1

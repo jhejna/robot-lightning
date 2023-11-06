@@ -7,7 +7,7 @@ from .robot import Controller
 
 def parse_from_lists(item: Union[Dict, List]):
     if isinstance(item, list):
-        return np.ndarray(item, dtype=np.float32)
+        return np.array(item, dtype=np.float32)
     elif isinstance(item, dict) and "low" in item and "high" in item:
         return gym.spaces.Box(low=parse_from_lists(item["low"]), high=parse_from_lists(item["high"]), dtype=np.float32)
     elif isinstance(item, dict):
@@ -39,7 +39,6 @@ class ZeroRPCController(Controller):
     def action_space(self):
         return self._action_space
 
-    @property
     def update(self, action):
         """
         Updates the robot controller with the action
@@ -52,7 +51,7 @@ class ZeroRPCController(Controller):
         For VR support MUST include [ee_pos, ee_quat]
         Also updates the controllers internal state for delta actions.
         """
-        return self.server.get_state()
+        return parse_from_lists(self.server.get_state())
 
     def reset(self, randomize=False):
         """
