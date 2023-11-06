@@ -1,4 +1,5 @@
 import zerorpc
+import gym
 
 from .robot import Controller
 
@@ -15,9 +16,8 @@ class ZeroRPCController(Controller):
         self.ip_address = ip_address
         self.server = zerorpc.Client(heartbeat=20)
         self.server.connect("tcp://" + self.ip_address + ":" + str(port))
-        self._observation_space = self.server.observation_space()
-        print(self._observation_space)
-        self._action_space = self.server.action_space
+        self._observation_space = gym.spaces.Dict(self.server.observation_space())
+        self._action_space = gym.spaces.Box(**self.server.action_space())
 
     @property
     def observation_space(self):

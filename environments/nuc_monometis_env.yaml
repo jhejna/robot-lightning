@@ -6,64 +6,57 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9 # :( unfortunately locked at this by build deps. Faster to set here than search over versions.
+    # Build dependencies
+    - assimp=5.0.1=hdca8b6f_4
+    - cmake
+    - cpuonly
+    - doxygen
+    - eigen=3.3.9
+    - grpc-cpp=1.41.1
+    - hpp-fcl=1.6.0
+    - libprotobuf=3.18.1
+    - mkl-include ==2022.0.1
+    - openmpi=2.1.2
+    - pinocchio ==2.5.2
+    - poco ==1.9.0 # needed by libfranka
+    - python ==3.9
+    - pytorch=2.0.1
+    - torchvision
+    - urdfdom=2.3.3=hc9558a2_0
+    - urdfdom_headers=1.0.5=hc9558a2_2
+    - yaml-cpp ==0.6.3
 
-  # Development
-  - conda-forge::pre-commit
+    # Run dependencies
+    - asv
+    - black
+    - boost ==1.72.0
+    - boost-cpp ==1.72.0
+    - breathe
+    - dash
+    - grpcio ==1.46.0
+    - mujoco
+    - hydra-core ==1.0.6
+    - importlib-resources ==5.7.1
+    - myst-parser
+    - numpy
+    - pandas
+    - plotly
+    - pip
+    - protobuf
+    - pybullet ==3.17
+    - pymodbus ==2.5.3
+    - pyserial
+    - pytest
+    - pytest-benchmark=4.0.0
+    - scipy
+    - spdlog=1.10.0=h924138e_0
+    - sphinx
+    - sphinx-copybutton
+    - sphinx-book-theme
+    - tqdm
+    - scipy
+    - pip
+    - pip:
+        - gym==0.23.1
+        - zerorpc
 
-  # pytorch
-  - pytorch=2.0.1
-  - cpuonly
-
-  # NP Family
-  - numpy<1.24.0 # Must install lower version of numpy due to copy bug in python 3.9 :(
-  - scipy
-  - scikit-image
-
-  # IO
-  - imageio
-  - pillow
-  - pyyaml
-  - cloudpickle
-  - h5py
-  - absl-py
-  - pyparsing
-
-  # Plotting
-  - tensorboard
-  - pandas
-  - matplotlib
-  - seaborn
-
-  # Other
-  - pytest
-  - tqdm
-  - future
-
-  # Polymetis build dependencies
-  - assimp=5.0.1=hdca8b6f_4
-  - cmake
-  - doxygen
-  - eigen
-  - grpc-cpp=1.41.1
-  - hpp-fcl
-  - libprotobuf=3.18.1
-  - openmpi
-  - pinocchio
-  - urdfdom=2.3.3=hc9558a2_0
-  - urdfdom_headers=1.0.5=hc9558a2_2
-  - yaml-cpp
-
-  # Polymetis run Dependencies
-  - boost=1.72.0
-  - boost-cpp=1.72.0
-  - breathe
-  - dash
-  - grpcio=1.46.0
-  - hydra-core
-  - importlib-resources
-  - myst-parser
-  - protobuf
-  - pymodbus
-  - pyserial
-  - spdlog=1.10.0=h924138e_0

@@ -18,13 +18,13 @@ except ImportError:
 class PolyMetisController(object):
     # Define the bounds for the Franka Robot
     EE_LOW = np.array([0.1, -0.4, -0.05, -np.pi, -np.pi, -np.pi], dtype=np.float32)
-    EE_HIGH = np.array([1.0, 0.4, 1.0, 1.0, np.pi, np.pi, np.pi], dtype=np.float32)  # np.pi at end
+    EE_HIGH = np.array([1.0, 0.4, 1.0, np.pi, np.pi, np.pi], dtype=np.float32)  # np.pi at end
     JOINT_LOW = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, 0.5445, -3.0159], dtype=np.float32)
     JOINT_HIGH = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159], dtype=np.float32)
     HOME = np.array([0.0, -np.pi / 4.0, 0.0, -3.0 * np.pi / 4.0, 0.0, np.pi / 2.0, np.pi / 4.0], dtype=np.float32)
 
     def __init__(
-        self, ip_address: str = "localhost", controller_type: str = "CARTESIAN_POSITION", max_delta: float = 0.05
+        self, ip_address: str = "localhost", controller_type: str = "CARTESIAN_IMPEDANCE", max_delta: float = 0.05
     ):
         self.ip_address = ip_address
         self.controller_type = controller_type
@@ -35,8 +35,7 @@ class PolyMetisController(object):
         self._gripper = None
 
     def observation_space(self):
-        return gym.spaces.Dict(
-            {
+        return {
                 "joint_positions": gym.spaces.Box(low=self.JOINT_LOW, high=self.JOINT_HIGH, dtype=np.float32),
                 "joint_velocities": gym.spaces.Box(
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
@@ -45,7 +44,6 @@ class PolyMetisController(object):
                 "ee_quat": gym.spaces.Box(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
                 "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
             }
-        )
 
     def action_space(self):
         if self.controller_type == "JOINT_IMPEDANCE":
@@ -62,9 +60,9 @@ class PolyMetisController(object):
         else:
             raise ValueError("Invalid Controller type provided")
         # Add the gripper action space
-        low = np.concatenate((low, [0]))
-        high = np.concatenate((high, [1]))
-        return gym.spaces.Box(low=low, high=high, dtype=np.float32)
+        low = np.concatenate((low.copy(), [0]), dtype=np.float32)
+        high = np.concatenate((high.copy(), [1]), dtype=np.float32)
+        return dict(low=low, high=high)
 
     @property
     def robot(self):
@@ -82,7 +80,7 @@ class PolyMetisController(object):
     def gripper(self):
         if self._gripper is None:
             assert POLYMETIS_IMPORTED, "Attempted to load gripper without polymetis package."
-            self._gripper = GripperInterface(ip_address=self._ip_address)
+            self._gripper = GripperInterface(ip_address=self.ip_address)
             if hasattr(self.gripper, "metadata") and hasattr(self.gripper.metadata, "max_width"):
                 # Should grab this from robotiq2f
                 self._max_gripper_width = self._gripper.metadata.max_width
@@ -186,7 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--gripper", type=str, help="Gripper type")
     args = parser.parse_args()
 
-    if POLYMETIS_IMPORTED:
+    if False:
         # Start the gripper and controller processes
         sudo_pw = input("What is the sudo password?")
 
