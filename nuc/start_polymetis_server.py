@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import zerorpc
 from scipy.spatial.transform import Rotation
-import os
 
 try:
     import polymetis
@@ -14,6 +13,7 @@ try:
 except ImportError:
     print("[research] Skipping polymetis, package not found")
     POLYMETIS_IMPORTED = False
+
 
 def parse_to_lists(item):
     if isinstance(item, (dict, gym.spaces.Dict)):
@@ -24,7 +24,8 @@ def parse_to_lists(item):
         return dict(low=item.low.tolist(), high=item.high.tolist())
     else:
         raise ValueError("Invalid item passed to parse_to_list")
-    
+
+
 class PolyMetisController(object):
     # Define the bounds for the Franka Robot
     EE_LOW = np.array([0.1, -0.4, -0.05, -np.pi, -np.pi, -np.pi], dtype=np.float32)
@@ -199,7 +200,6 @@ class PolyMetisController(object):
 
 if __name__ == "__main__":
     import argparse
-    import subprocess
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--controller-type", type=str, default="CARTESIAN_DELTA", help="controller type")

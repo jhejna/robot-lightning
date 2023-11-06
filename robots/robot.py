@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Type, Union
 import cv2
 import gym
 import numpy as np
+
 import robots
 
 NEW_GYM_API = False if gym.__version__ < "0.26.1" else True
@@ -41,6 +42,29 @@ class Controller(object):
         Reset the robot to HOME, randomize if asked for.
         """
         raise NotImplementedError
+
+
+class DummyController(Controller):
+    """
+    A dummy controller class used for testing code.
+    """
+
+    @abstractproperty
+    def observation_space(self):
+        return gym.spaces.Box(low=-np.inf, high=np.inf, shape=(14,))  # Ex: 7DoF pos and vel
+
+    @property
+    def action_space(self):
+        return gym.spaces.Box(low=-1, high=1, shape=(7,))
+
+    def update(self, action):
+        pass
+
+    def get_state(self):
+        return self.observation_space.sample()
+
+    def reset(self, randomize=False):
+        pass
 
 
 def precise_wait(t_end: float, slack_time: float = 0.001):
@@ -106,21 +130,28 @@ class RobotEnv(gym.Env):
 
     def __init__(
         self,
-        controller_class: Union[str, Type[Controller]],
+        controller_class: Union[str, Type[Controller]] = DummyController,
         controller_kwargs: Optional[Dict] = None,
         random_init: bool = True,
         control_hz: float = 10.0,
-        img_width: int = 224,
-        img_height: int = 224,
+        img_width: int = 128,
+        img_height: int = 128,
         cameras: List[str] = ("agent", "wrist"),
-        channels_last: bool = True,
+        channels_first: bool = True,
         horizon: int = 500,
+        normalize_actions: bool = True,
     ):
         self.random_init = random_init
-        controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class # TODO figure out how to import elegantly.
+        controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class
         self.controller = controller_class(**({} if controller_kwargs is None else controller_kwargs))
         # Add the action space limits.
-        self.action_space = gym.spaces.Box(low=-1, high=1, shape=self.controller.action_space.shape, dtype=np.float32)
+        self.normalize_actions = normalize_actions
+        if self.normalize_actions:
+            self.action_space = gym.spaces.Box(
+                low=-1, high=1, shape=self.controller.action_space.shape, dtype=np.float32
+            )
+        else:
+            self.action_space = self.controller.action_space
 
         # Get the cameras
         camera_objects = []
@@ -136,26 +167,29 @@ class RobotEnv(gym.Env):
         except ImportError:
             print("Warning: pyrealsense2 package not found")
 
-        assert len(camera_objects) == len(cameras), "Found " + str(len(camera_objects)) + " connected cameras, but `cameras` was " + str(cameras)
+        assert len(camera_objects) >= len(cameras), "Listed more camera objects than connected cameras."
+        camera_objects = camera_objects[: len(cameras)]
 
         self.cameras = {k: v for k, v in zip(cameras, camera_objects)}
 
         spaces = dict(state=self.controller.observation_space)
         for camera_name in self.cameras.keys():
-            spaces[camera_name + "_image"] = gym.spaces.Box(low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8)
+            spaces[camera_name + "_image"] = gym.spaces.Box(
+                low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8
+            )
         self.observation_space = gym.spaces.Dict(spaces)
 
         self.horizon = horizon
         self._max_episode_steps = horizon
         self.control_hz = float(control_hz)
-        self.channels_last = channels_last
+        self.channels_first = channels_first
         self._steps = 0
 
     def _get_obs(self):
         obs = dict(state=self.controller.get_state())
         for camera_name, camera_object in self.cameras.items():
             frame = camera_object.get_frame()
-            if self.channels_last:
+            if self.channels_first:
                 frame = frame.transpose(2, 0, 1)
             obs[camera_name + "_image"] = frame
 
@@ -164,8 +198,12 @@ class RobotEnv(gym.Env):
     def step(self, action):
         # Immediately update with the action. Note that we scale everything to be between -1 and 1.
         start_time = time.time()
-        low, high = self.controller.action_space.low, self.controller.action_space.high
-        unscaled_action = low + (0.5 * (action + 1.0) * (high - low))
+        if self.normalize_actions:
+            low, high = self.controller.action_space.low, self.controller.action_space.high
+            unscaled_action = low + (0.5 * (action + 1.0) * (high - low))
+        else:
+            unscaled_action = action
+
         self.controller.update(unscaled_action)
 
         comp_time = time.time() - start_time

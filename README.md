@@ -14,15 +14,15 @@ Or if using conda, you may want to add these to your conda environment file.
 
 
 ### Oculus Reader
-If you want to use VR, install [oculus_reader](https://github.com/rail-berkeley/oculus_reader). 
+If you want to use VR, install [oculus_reader](https://github.com/rail-berkeley/oculus_reader).
 1. Install `git lfs` via pip instead of following the sudo setup instructions. This can be done with `pip install git-lfs`.
-2. Install adb devices: `sudo apt install android-tools-adb`. 
+2. Install adb devices: `sudo apt install android-tools-adb`.
 3. After doing this, you can clone the oculus reader repository with `git clone https://github.com/rail-berkeley/oculus_reader`.
 4. Then, install the package from the oculus reader repo with `pip install -e .`
 
 
 ### Demonstration collection
-To collect demos, run 
+To collect demos, run
 ```
 python scripts/collect_demos.py --path path/to/save/ --
 ```
@@ -63,3 +63,10 @@ tmux send-keys -t 1 'conda activate monometis;cd ~/monometis/launcher; ./launch_
 tmux select-pane -t 0
 tmux -2 attach-session -d
 
+## Example Scripts
+
+**Collecting Data for RT-X Finetuning**
+
+```
+python scripts/collect_demos.py --cameras agent wrist --normalize-actions 0 --channels-first 0 --instr "<language instruction>"
+```

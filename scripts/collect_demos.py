@@ -2,7 +2,7 @@ import argparse
 import datetime
 import io
 import os
-from typing import Dict, Iterable, Tuple, Any
+from typing import Any, Dict, Iterable, Tuple
 
 import gym
 import numpy as np
@@ -54,6 +54,7 @@ def append(lst, item):
     else:
         lst.append(item)
 
+
 def _flatten_dict_helper(flat_dict: Dict, value: Any, prefix: str, separator: str = ".") -> None:
     if isinstance(value, (dict, gym.spaces.Dict)):
         for k in value.keys():
@@ -68,6 +69,7 @@ def flatten_dict(d: Dict, separator: str = ".") -> Dict:
     _flatten_dict_helper(flat_dict, d, "", separator=separator)
     return flat_dict
 
+
 def nest_dict(d: Dict, separator: str = ".") -> Dict:
     nested_d = dict()
     for key in d.keys():
@@ -80,6 +82,7 @@ def nest_dict(d: Dict, separator: str = ".") -> Dict:
             key_parts.pop(0)
         current_d[key_parts[0]] = d[key]  # Set the value
     return nested_d
+
 
 def save_episode(data: Dict, path: str, enforce_length: bool = True) -> None:
     # Flatten the dict for saving as a numpy array.
@@ -99,9 +102,10 @@ def save_episode(data: Dict, path: str, enforce_length: bool = True) -> None:
                 dtype = np.bool_
             elif isinstance(first_value, int):
                 dtype = np.int64
+            else:
+                dtype = None
             data[k] = np.array(data[k], dtype=dtype)
         else:
-            print(data[k])
             raise ValueError("Unsupported type passed to `save_data`.")
 
     if enforce_length:
@@ -117,12 +121,22 @@ def save_episode(data: Dict, path: str, enforce_length: bool = True) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to save demonstrations.")
-    parser.add_argument("--horizon", type=int, default=200, help="episode horizon")
+    parser.add_argument("--horizon", type=int, default=500, help="episode horizon")
     parser.add_argument("--width", type=int, default=128, help="Image width")
     parser.add_argument("--height", type=int, default=128, help="Image height")
     parser.add_argument("--cameras", nargs="+", default=[], help="Cameras connected to the workstation.")
     parser.add_argument("--control-hz", type=float, default=10.0, help="Control Hz")
     parser.add_argument("--controller", type=str, default="ZeroRPCController", help="Controller Class to use")
+    parser.add_argument("--instr", type=str, default=None, help="Language instruction.")
+    parser.add_argument(
+        "--normalize-actions",
+        type=bool,
+        default=1,
+        help="Whether or not to normalize actions to -1 to 1 in the RobotEnv",
+    )
+    parser.add_argument(
+        "--channels-first", type=bool, default=1, help="Whether or to format images according to pytorch"
+    )
     parser.add_argument(
         "--lightning-format",
         type=int,
@@ -144,7 +158,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    controller_kwargs = dict() # In case we want to add default controller kwargs.
+    controller_kwargs = dict()  # In case we want to add default controller kwargs.
     controller_kwargs.update(parse_vars(args.controller_kwargs))
 
     vr_kwargs = dict(
@@ -196,32 +210,44 @@ if __name__ == "__main__":
             )
         episode["obs"] = nest_dict({k: [] for k in flatten_dict(env.observation_space).keys()})
 
+        # Reset the environment
         if NEW_GYM_API:
             obs, info = env.reset()
         else:
             obs = env.reset()
-
         append(episode, dict(obs=obs))
+
+        # See if we want to use language.
+        lang = args.instr if args.instr is not None else input("[robots] Language instruction?")
+        lang = None if lang == "" else lang
+        if lang is not None:
+            episode["language_instruction"] = [lang]
+
         print("[robots] Start episode.")
         while not done:
             action = vr.predict(obs)
 
-            if action is None:
-                continue
+            if action is not None:
+                # If we have an action from VR, step the environment
+                if NEW_GYM_API:
+                    obs, reward, done, terminated, info = env.step(action)
+                else:
+                    obs, reward, done, info = env.step(action)
+                    terminated = False
 
-            if NEW_GYM_API:
-                obs, reward, done, terminated, info = env.step(action)
-            else:
-                obs, reward, done, info = env.step(action)
-                terminated = False
-            
+                discount = 1.0 - float(terminated)
+                step = dict(obs=obs, action=action, reward=reward, done=done, discount=discount)
+                if lang is not None:
+                    step["language_instruction"] = lang
+                append(episode, step)
+
             controller_info = vr.get_info()
             done = done or controller_info["user_set_success"] or controller_info["user_set_failure"]
-            discount = 1.0 - float(terminated)
-
-            append(episode, dict(obs=obs, action=action, reward=reward, done=done, discount=discount))
 
         print("[robots] Finished episode.")
+        # Store done and reward at the final timestep
+        episode["done"][-1] = True
+        episode["reward"][-1] = 1.0
 
         ep_len = len(episode["done"])
         num_episodes += 1

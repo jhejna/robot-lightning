@@ -1,9 +1,11 @@
-import zerorpc
-import gym
-import numpy as np
 from typing import Dict, List, Union
 
+import gym
+import numpy as np
+import zerorpc
+
 from .robot import Controller
+
 
 def parse_from_lists(item: Union[Dict, List]):
     if isinstance(item, list):

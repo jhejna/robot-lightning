@@ -49,4 +49,4 @@ py_version = "all"
 
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["cache", "nuc", "scripts", "environments"]
+exclude = ["cache", "nuc", "scripts", "environments", "rlds"]

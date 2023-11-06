@@ -210,7 +210,6 @@ class VRController(object):
                     self.vr_to_global_mat = np.linalg.inv(rot_mat)
                 except np.linalg.LinAlgError:
                     pass
-            
 
     def _process_reading(self):
         rot_mat = np.asarray(self._state["poses"][self.controller_id])
