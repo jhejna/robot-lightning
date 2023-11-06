@@ -1,13 +1,19 @@
 import zerorpc
 import gym
+import numpy as np
+from typing import Dict, List, Union
 
 from .robot import Controller
 
-def create_space(spaces):
-    if "low" in spaces and "high" in spaces:
-        return gym.spaces.Box(**spaces)
+def parse_from_lists(item: Union[Dict, List]):
+    if isinstance(item, list):
+        return np.ndarray(item, dtype=np.float32)
+    elif isinstance(item, dict) and "low" in item and "high" in item:
+        return gym.spaces.Box(low=parse_from_lists(item["low"]), high=parse_from_lists(item["high"]), dtype=np.float32)
+    elif isinstance(item, dict):
+        return {k: parse_from_lists(v) for k, v in item.items()}
     else:
-        return gym.spaces.Dict({k: create_space(v) for k, v in spaces.items()})
+        raise ValueError("Invalid item passed to parse_from_lists")
 
 
 class ZeroRPCController(Controller):
@@ -22,8 +28,8 @@ class ZeroRPCController(Controller):
         self.ip_address = ip_address
         self.server = zerorpc.Client(heartbeat=20)
         self.server.connect("tcp://" + self.ip_address + ":" + str(port))
-        self._observation_space = create_space(self.server.observation_space())
-        self._action_space = create_space(self.server.action_space())
+        self._observation_space = gym.spaces.Dict(parse_from_lists(self.server.get_observation_space()))
+        self._action_space = parse_from_lists(self.server.get_action_space())
 
     @property
     def observation_space(self):
@@ -38,7 +44,7 @@ class ZeroRPCController(Controller):
         """
         Updates the robot controller with the action
         """
-        self.server.update(action)
+        self.server.update(action.tolist())
 
     def get_state(self):
         """

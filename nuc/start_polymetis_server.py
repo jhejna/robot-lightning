@@ -14,7 +14,16 @@ except ImportError:
     print("[research] Skipping polymetis, package not found")
     POLYMETIS_IMPORTED = False
 
-
+def parse_to_lists(item):
+    if isinstance(item, (dict, gym.spaces.Dict)):
+        return {k: parse_to_lists(v) for k, v in item.items()}
+    elif isinstance(item, np.ndarray):
+        return item.tolist()
+    elif isinstance(item, gym.spaces.Box):
+        return dict(low=item.low.tolist(), high=item.high.tolist())
+    else:
+        raise ValueError("Invalid item passed to parse_to_list")
+    
 class PolyMetisController(object):
     # Define the bounds for the Franka Robot
     EE_LOW = np.array([0.1, -0.4, -0.05, -np.pi, -np.pi, -np.pi], dtype=np.float32)
@@ -34,20 +43,22 @@ class PolyMetisController(object):
         self._robot = None
         self._gripper = None
 
+    @cached_property
     def observation_space(self):
-        # Define with dictionaries so it can be serialized over zerorpc
-        return {
-                "joint_positions": dict(low=self.JOINT_LOW, high=self.JOINT_HIGH, dtype=np.float32),
-                "joint_velocities": dict(
+        return gym.spaces.Dict(
+            {
+                "joint_positions": gym.spaces.Box(low=self.JOINT_LOW, high=self.JOINT_HIGH, dtype=np.float32),
+                "joint_velocities": gym.spaces.Box(
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
                 ),
-                "ee_pos": dict(low=self.EE_LOW[:3], high=self.EE_HIGH[:3], dtype=np.float32),
-                "ee_quat": dict(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
-                "gripper_pos": dict(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
+                "ee_pos": gym.spaces.Box(low=self.EE_LOW[:3], high=self.EE_HIGH[:3], dtype=np.float32),
+                "ee_quat": gym.spaces.Box(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
+                "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
             }
+        )
 
+    @cached_property
     def action_space(self):
-        # Define with dictionaries so it can be serialized over zerorpc
         if self.controller_type == "JOINT_IMPEDANCE":
             low, high = self.JOINT_LOW, self.JOINT_HIGH
         elif self.controller_type == "CARTESIAN_IMPEDANCE":
@@ -62,9 +73,15 @@ class PolyMetisController(object):
         else:
             raise ValueError("Invalid Controller type provided")
         # Add the gripper action space
-        low = np.concatenate((low.copy(), [0]), dtype=np.float32)
-        high = np.concatenate((high.copy(), [1]), dtype=np.float32)
-        return dict(low=low, high=high, dtype=np.float32)
+        low = np.concatenate((low, [0]))
+        high = np.concatenate((high, [1]))
+        return gym.spaces.Box(low=low, high=high, dtype=np.float32)
+
+    def get_observation_space(self):
+        return parse_to_lists(self.observation_space)
+
+    def get_action_space(self):
+        return parse_to_lists(self.action_space)
 
     @property
     def robot(self):
@@ -104,6 +121,7 @@ class PolyMetisController(object):
         """
         Updates the robot controller with the action
         """
+        action = np.array(action, dtype=np.float32)
         action = np.clip(action, self.action_space.low, self.action_space.high)
         robot_action, gripper_action = action[:-1], action[-1]
 
@@ -150,7 +168,7 @@ class PolyMetisController(object):
             ee_quat=ee_quat.numpy(),
             gripper_pos=np.asarray([gripper_pos], dtype=np.float32),
         )
-        return self.state
+        return parse_to_lists(self.state)
 
     def reset(self, randomize: bool = True):
         if self.robot.is_running_policy():
