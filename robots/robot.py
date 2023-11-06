@@ -141,8 +141,8 @@ class RobotEnv(gym.Env):
         self.cameras = {k: v for k, v in zip(cameras, camera_objects)}
 
         spaces = dict(state=self.controller.observation_space)
-        for camera in self.cameras.keys():
-            spaces[camera] = gym.spaces.Box(low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8)
+        for camera_name in self.cameras.keys():
+            spaces[camera_name + "_image"] = gym.spaces.Box(low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8)
         self.observation_space = gym.spaces.Dict(spaces)
 
         self.horizon = horizon
@@ -181,7 +181,7 @@ class RobotEnv(gym.Env):
             # Note that this is following the Gym 0.26 API for termination.
             return self._get_obs(), 0, False, self._steps == self.horizon, info
         else:
-            return self._get_obs, 0, terminated, info
+            return self._get_obs(), 0, terminated, info
 
     def reset(self):
         self.controller.reset(randomize=self.random_init)

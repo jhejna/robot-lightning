@@ -5,9 +5,10 @@ import numpy as np
 import torch
 import zerorpc
 from scipy.spatial.transform import Rotation
+import os
 
 try:
-    from polymetis import GripperInterface, RobotInterface
+    import polymetis
 
     POLYMETIS_IMPORTED = True
 except ImportError:
@@ -91,7 +92,7 @@ class PolyMetisController(object):
         """
         if self._robot is None:
             assert POLYMETIS_IMPORTED, "Attempted to load robot without polymetis package."
-            self._robot = RobotInterface(ip_address=self.ip_address, enforce_version=False)
+            self._robot = polymetis.RobotInterface(ip_address=self.ip_address, enforce_version=False)
             self._robot.set_home_pose(torch.Tensor(self.HOME))
         return self._robot
 
@@ -99,7 +100,7 @@ class PolyMetisController(object):
     def gripper(self):
         if self._gripper is None:
             assert POLYMETIS_IMPORTED, "Attempted to load gripper without polymetis package."
-            self._gripper = GripperInterface(ip_address=self.ip_address)
+            self._gripper = polymetis.GripperInterface(ip_address=self.ip_address)
             if hasattr(self.gripper, "metadata") and hasattr(self.gripper.metadata, "max_width"):
                 # Should grab this from robotiq2f
                 self._max_gripper_width = self._gripper.metadata.max_width
@@ -204,20 +205,24 @@ if __name__ == "__main__":
     parser.add_argument("--gripper", type=str, help="Gripper type")
     args = parser.parse_args()
 
-    if False:
+    if POLYMETIS_IMPORTED:
         # Start the gripper and controller processes
-        sudo_pw = input("What is the sudo password?")
+        sudo_pw = input("What is the sudo password? ")
 
-        # Kill any existing servers
+        # Get the monometis launch path
+        polymetis_path = os.path.dirname(os.path.realpath(polymetis.__file__))
+        monometis_launcher_path = os.path.join(os.path.dirname(polymetis_path), "../../../launcher")
 
-        # process = subprocess.Popen(
-        #     "echo " + sudo_pw + " | sudo -S " + "bash /launch_robot.sh",
-        #     stdout=subprocess.PIPE,
-        #     stdin=subprocess.PIPE,
-        #     shell=True,
-        #     executable="/bin/bash",
-        #     encoding="utf8",
-        # )
+        cmd_str = "cd " + monometis_launcher_path + ";" 
+        robot_cmd = cmd_str + "echo " + sudo_pw + " | sudo -S pkill -9 run_server; echo " + sudo_pw + " | sudo ./launch_robot.sh"
+        robot_process = subprocess.Popen(
+            robot_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, shell=True, executable="/bin/bash", encoding="utf8"
+        )
+
+        gripper_cmd = cmd_str + "echo " + sudo_pw + " | sudo -S pkill -9 gripper; echo " + sudo_pw + " | sudo ./launch_gripper.sh"
+        gripper_process = subprocess.Popen(
+            gripper_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, shell=True, executable="/bin/bash", encoding="utf8"
+        )
 
     # Then launch the controller.
     client = PolyMetisController()
