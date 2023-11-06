@@ -35,17 +35,19 @@ class PolyMetisController(object):
         self._gripper = None
 
     def observation_space(self):
+        # Define with dictionaries so it can be serialized over zerorpc
         return {
-                "joint_positions": gym.spaces.Box(low=self.JOINT_LOW, high=self.JOINT_HIGH, dtype=np.float32),
-                "joint_velocities": gym.spaces.Box(
+                "joint_positions": dict(low=self.JOINT_LOW, high=self.JOINT_HIGH, dtype=np.float32),
+                "joint_velocities": dict(
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
                 ),
-                "ee_pos": gym.spaces.Box(low=self.EE_LOW[:3], high=self.EE_HIGH[:3], dtype=np.float32),
-                "ee_quat": gym.spaces.Box(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
-                "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
+                "ee_pos": dict(low=self.EE_LOW[:3], high=self.EE_HIGH[:3], dtype=np.float32),
+                "ee_quat": dict(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
+                "gripper_pos": dict(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
             }
 
     def action_space(self):
+        # Define with dictionaries so it can be serialized over zerorpc
         if self.controller_type == "JOINT_IMPEDANCE":
             low, high = self.JOINT_LOW, self.JOINT_HIGH
         elif self.controller_type == "CARTESIAN_IMPEDANCE":
@@ -62,7 +64,7 @@ class PolyMetisController(object):
         # Add the gripper action space
         low = np.concatenate((low.copy(), [0]), dtype=np.float32)
         high = np.concatenate((high.copy(), [1]), dtype=np.float32)
-        return dict(low=low, high=high)
+        return dict(low=low, high=high, dtype=np.float32)
 
     @property
     def robot(self):
