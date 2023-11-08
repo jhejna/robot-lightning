@@ -156,9 +156,6 @@ class RobotEnv(gym.Env):
         # Get the cameras
         camera_objects = []
 
-        caps = [cv2.VideoCapture(i) for i in range(3)]
-        camera_objects.extend([OpenCVCamera(cap, width=img_width, height=img_height) for cap in caps if cap.read()[0]])
-
         try:
             import pyrealsense2 as rs
 
@@ -166,6 +163,9 @@ class RobotEnv(gym.Env):
             camera_objects.extend([RealSenseCamera(device) for device in list(context.devices)])
         except ImportError:
             print("Warning: pyrealsense2 package not found")
+
+        caps = [cv2.VideoCapture(i) for i in range(3)]
+        camera_objects.extend([OpenCVCamera(cap, width=img_width, height=img_height) for cap in caps if cap.read()[0]])
 
         assert len(camera_objects) >= len(cameras), "Listed more camera objects than connected cameras."
         camera_objects = camera_objects[: len(cameras)]
