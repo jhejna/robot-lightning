@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterable, Tuple
 
 import gym
 import numpy as np
+import yaml
 
 import robots
 
@@ -121,35 +122,14 @@ def save_episode(data: Dict, path: str, enforce_length: bool = True) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to save demonstrations.")
-    parser.add_argument("--horizon", type=int, default=500, help="episode horizon")
-    parser.add_argument("--width", type=int, default=128, help="Image width")
-    parser.add_argument("--height", type=int, default=128, help="Image height")
-    parser.add_argument("--cameras", nargs="+", default=[], help="Cameras connected to the workstation.")
-    parser.add_argument("--control-hz", type=float, default=10.0, help="Control Hz")
-    parser.add_argument("--controller", type=str, default="ZeroRPCController", help="Controller Class to use")
+    parser.add_argument("--config", type=str, required=True, help="Path to config file.")
     parser.add_argument("--instr", type=str, default=None, help="Language instruction.")
-    parser.add_argument(
-        "--normalize-actions",
-        type=bool,
-        default=1,
-        help="Whether or not to normalize actions to -1 to 1 in the RobotEnv",
-    )
-    parser.add_argument(
-        "--channels-first", type=bool, default=1, help="Whether or to format images according to pytorch"
-    )
     parser.add_argument(
         "--lightning-format",
         type=int,
         default=1,
         help="Whether or not to save demos compatible with research-lightning",
     )
-    parser.add_argument(
-        "--controller-kwargs",
-        metavar="KEY=VALUE",
-        action="append",
-        help="Set kv pairs used as args for the controller class.",
-    )
-
     parser.add_argument(
         "--vr-kwargs",
         metavar="KEY=VALUE",
@@ -158,8 +138,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    controller_kwargs = dict()  # In case we want to add default controller kwargs.
-    controller_kwargs.update(parse_vars(args.controller_kwargs))
 
     vr_kwargs = dict(
         pos_action_gain=3.0,
@@ -170,23 +148,11 @@ if __name__ == "__main__":
     )
     vr_kwargs.update(parse_vars(args.vr_kwargs))
 
-    env = robots.RobotEnv(
-        controller_class=args.controller,
-        controller_kwargs=controller_kwargs,
-        random_init=True,
-        img_width=args.width,
-        img_height=args.height,
-        control_hz=args.control_hz,
-        cameras=args.cameras,
-        horizon=args.horizon,
-    )
-    vr = robots.VRController(
-        pos_action_gain=3.0,
-        rot_action_gain=1.0,
-        gripper_action_gain=1.0,
-        min_magnitude=0.15,
-        robot_orientation="gripper_on_left",
-    )
+    with open(args.config, "r") as f:
+        config = yaml.load(f, Loader=yaml.Loader)
+
+    env = robots.RobotEnv(**config)
+    vr = robots.VRController(**vr_kwargs)
 
     os.makedirs(args.path, exist_ok=True)
 

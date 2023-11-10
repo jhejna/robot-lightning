@@ -1,7 +1,13 @@
+from . import cameras
 from .robot import RobotEnv
 
 try:
-    from .remote import ZeroRPCController
+    from .controllers.remote import ZeroRPCClient, ZeroRPCServer
+except ImportError:
+    print("[robots] ZeroRPC controllers not loaded.")
+
+try:
+    from .controllers.polymetis import PolyMetisController
 except ImportError:
     print("[robots] ZeroRPC controllers not loaded.")
 

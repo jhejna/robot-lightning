@@ -2,31 +2,19 @@ from functools import cached_property
 
 import gym
 import numpy as np
-import torch
-import zerorpc
-from scipy.spatial.transform import Rotation
+from .controller import Controller
 
 try:
     import polymetis
-
+    import torch
+    from scipy.spatial.transform import Rotation
     POLYMETIS_IMPORTED = True
 except ImportError:
-    print("[research] Skipping polymetis, package not found")
+    print("[research] Skipping polymetis, torch, and scipy. One of the packages was not found")
     POLYMETIS_IMPORTED = False
 
 
-def parse_to_lists(item):
-    if isinstance(item, (dict, gym.spaces.Dict)):
-        return {k: parse_to_lists(v) for k, v in item.items()}
-    elif isinstance(item, np.ndarray):
-        return item.tolist()
-    elif isinstance(item, gym.spaces.Box):
-        return dict(low=item.low.tolist(), high=item.high.tolist())
-    else:
-        raise ValueError("Invalid item passed to parse_to_list")
-
-
-class PolyMetisController(object):
+class PolyMetisController(Controller):
     # Define the bounds for the Franka Robot
     EE_LOW = np.array([0.1, -0.4, -0.05, -np.pi, -np.pi, -np.pi], dtype=np.float32)
     EE_HIGH = np.array([1.0, 0.4, 1.0, np.pi, np.pi, np.pi], dtype=np.float32)  # np.pi at end
@@ -79,12 +67,6 @@ class PolyMetisController(object):
         high = np.concatenate((high, [1]))
         return gym.spaces.Box(low=low, high=high, dtype=np.float32)
 
-    def get_observation_space(self):
-        return parse_to_lists(self.observation_space)
-
-    def get_action_space(self):
-        return parse_to_lists(self.action_space)
-
     @property
     def robot(self):
         """
@@ -119,11 +101,10 @@ class PolyMetisController(object):
             width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.01, blocking=blocking
         )
 
-    def update(self, action):
+    def update(self, action: np.ndarray):
         """
         Updates the robot controller with the action
         """
-        action = np.array(action, dtype=np.float32)
         action = np.clip(action, self.action_space.low, self.action_space.high)
         robot_action, gripper_action = action[:-1], action[-1]
 
@@ -170,7 +151,7 @@ class PolyMetisController(object):
             ee_quat=ee_quat.numpy(),
             gripper_pos=np.asarray([gripper_pos], dtype=np.float32),
         )
-        return parse_to_lists(self.state)
+        return self.state
 
     def reset(self, randomize: bool = True):
         if self.robot.is_running_policy():
@@ -196,17 +177,3 @@ class PolyMetisController(object):
             self.robot.start_cartesian_impedance()
         else:
             raise ValueError("Invalid Controller type provided")
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--controller-type", type=str, default="CARTESIAN_DELTA", help="controller type")
-    args = parser.parse_args()
-
-    # Then launch the controller.
-    client = PolyMetisController(controller_type=args.controller_type)
-    s = zerorpc.Server(client)
-    s.bind("tcp://0.0.0.0:4242")
-    s.run()

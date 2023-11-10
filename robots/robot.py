@@ -1,70 +1,13 @@
 import time
-from abc import abstractmethod, abstractproperty
-from typing import Dict, List, Optional, Type, Union
+from typing import Dict, Optional, Type, Union
 
-import cv2
 import gym
 import numpy as np
 
 import robots
+from robots.controllers.controller import Controller, DummyController
 
 NEW_GYM_API = False if gym.__version__ < "0.26.1" else True
-
-
-class Controller(object):
-    @abstractproperty
-    def observation_space(self):
-        raise NotImplementedError
-
-    @abstractproperty
-    def action_space(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def update(self, action):
-        """
-        Updates the robot controller with the action
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_state(self):
-        """
-        Returns the robot state dictionary.
-        For VR support MUST include [ee_pos, ee_quat]
-        Also updates the controllers internal state for delta actions.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def reset(self, randomize=False):
-        """
-        Reset the robot to HOME, randomize if asked for.
-        """
-        raise NotImplementedError
-
-
-class DummyController(Controller):
-    """
-    A dummy controller class used for testing code.
-    """
-
-    @abstractproperty
-    def observation_space(self):
-        return gym.spaces.Box(low=-np.inf, high=np.inf, shape=(14,))  # Ex: 7DoF pos and vel
-
-    @property
-    def action_space(self):
-        return gym.spaces.Box(low=-1, high=1, shape=(7,))
-
-    def update(self, action):
-        pass
-
-    def get_state(self):
-        return self.observation_space.sample()
-
-    def reset(self, randomize=False):
-        pass
 
 
 def precise_wait(t_end: float, slack_time: float = 0.001):
@@ -76,51 +19,6 @@ def precise_wait(t_end: float, slack_time: float = 0.001):
             time.sleep(t_sleep)
         while time.time() < t_end:
             pass
-
-
-class Camera(object):
-    @abstractmethod
-    def get_frame(self) -> np.ndarray:
-        pass
-
-    @abstractmethod
-    def close(self):
-        pass
-
-
-class OpenCVCamera(Camera):
-    def __init__(self, cap, width: int = 64, height: int = 64):
-        self._width = width
-        self._height = height
-        self._cap = cap
-
-    def get_frame(self) -> np.ndarray:
-        retval, img = self._cap.read()
-        assert retval
-        img = cv2.resize(img, (self._width, self._height), interpolation=cv2.INTER_AREA)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        return img
-
-
-class RealSenseCamera(Camera):
-    def __init__(self, device, width: int = 64, height: int = 64):
-        import pyrealsense2 as rs
-
-        self._pipeline = rs.pipeline()
-        self._serial_number = str(device.get_info(rs.camera_info.serial_number))
-        self._width, self._height = width, height
-        config = rs.config()
-        config.enable_device(self._serial_number)
-        config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
-        self._pipeline.start(config)
-
-    def get_frame(self) -> np.ndarray:
-        frames = self._pipeline.wait_for_frames()
-        color_frame = frames.get_color_frame()
-        assert color_frame
-        img = np.asanyarray(color_frame.get_data())
-        img = cv2.resize(img, (self._width, self._height), interpolation=cv2.INTER_AREA)
-        return img
 
 
 class RobotEnv(gym.Env):
@@ -136,7 +34,8 @@ class RobotEnv(gym.Env):
         control_hz: float = 10.0,
         img_width: int = 128,
         img_height: int = 128,
-        cameras: List[str] = ("agent", "wrist"),
+        depth: bool = False,
+        cameras: Optional[Dict] = None,
         channels_first: bool = True,
         horizon: int = 500,
         normalize_actions: bool = True,
@@ -153,32 +52,25 @@ class RobotEnv(gym.Env):
         else:
             self.action_space = self.controller.action_space
 
-        # Get the cameras
-        camera_objects = []
-
-        caps = [cv2.VideoCapture(i) for i in range(3)]
-        camera_objects.extend([OpenCVCamera(cap, width=img_width, height=img_height) for cap in caps if cap.read()[0]])
-
-        try:
-            import pyrealsense2 as rs
-
-            context = rs.context()
-            camera_objects.extend([RealSenseCamera(device) for device in list(context.devices)])
-        except ImportError:
-            print("Warning: pyrealsense2 package not found")
-
-        assert len(camera_objects) >= len(cameras), "Listed more camera objects than connected cameras."
-        camera_objects = camera_objects[: len(cameras)]
-
-        self.cameras = {k: v for k, v in zip(cameras, camera_objects)}
-
         spaces = dict(state=self.controller.observation_space)
-        for camera_name in self.cameras.keys():
-            spaces[camera_name + "_image"] = gym.spaces.Box(
-                low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8
-            )
-        self.observation_space = gym.spaces.Dict(spaces)
 
+        self.cameras = dict()
+        if cameras is not None:
+            self.cameras = dict()
+            for name, camera_params in cameras.items():
+                camera_class, camera_kwargs = camera_params["camera_class"], camera_params["camera_kwargs"]
+                self.cameras[name] = vars(robots.cameras)[camera_class](
+                    width=img_width, height=img_height, depth=depth, **camera_kwargs
+                )
+                spaces[name + "_image"] = gym.spaces.Box(
+                    low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8
+                )
+                if depth and self.cameras[name].has_depth:
+                    spaces[name + "_depth"] = gym.spaces.Box(
+                        low=0, high=255, shape=(img_height, img_width, 1), dtype=np.uint8
+                    )
+
+        self.observation_space = gym.spaces.Dict(spaces)
         self.horizon = horizon
         self._max_episode_steps = horizon
         self.control_hz = float(control_hz)
@@ -187,12 +79,11 @@ class RobotEnv(gym.Env):
 
     def _get_obs(self):
         obs = dict(state=self.controller.get_state())
-        for camera_name, camera_object in self.cameras.items():
-            frame = camera_object.get_frame()
+        for name, camera in self.cameras.items():
+            frames = camera.get_frames()
             if self.channels_first:
-                frame = frame.transpose(2, 0, 1)
-            obs[camera_name + "_image"] = frame
-
+                frames = {k: v.transpose(2, 0, 1) for k, v in frames.items()}
+            obs.update({name + "_" + k: v for k, v in frames.items()})
         return obs
 
     def step(self, action):
@@ -206,9 +97,8 @@ class RobotEnv(gym.Env):
 
         self.controller.update(unscaled_action)
 
-        comp_time = time.time() - start_time
-        sleep_left = max(0, (1 / self.control_hz) - comp_time)
-        time.sleep(sleep_left)
+        end_time = start_time + (1 / self.control_hz)
+        precise_wait(end_time)
 
         self._steps += 1
 

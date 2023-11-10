@@ -108,13 +108,6 @@ def orientation_error(desired, current):
     return 0.5 * (cross_product(rc1, rd1) + cross_product(rc2, rd2) + cross_product(rc3, rd3))
 
 
-def run_threaded_command(command, args=(), daemon=True):
-    thread = threading.Thread(target=command, args=args, daemon=daemon)
-    thread.start()
-
-    return thread
-
-
 class VRController(object):
     def __init__(
         self,
@@ -158,7 +151,8 @@ class VRController(object):
         self.reset_orientation = True
         self.reset_state()
 
-        run_threaded_command(self._update_internal_state)
+        thread = threading.Thread(target=self._update_internal_state, args=(), daemon=True)
+        thread.start()
 
     def reset_state(self):
         self._state = {

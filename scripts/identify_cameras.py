@@ -1,10 +1,11 @@
 import argparse
-from robots.robot import OpenCVCamera, RealSenseCamera
+
 import cv2
 from matplotlib import pyplot as plt
 
-if __name__ == "__main__":
+from robots.robot import OpenCVCamera, RealSenseCamera
 
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--width", type=int, default=128, help="Image width")
     parser.add_argument("--height", type=int, default=128, help="Image height")
@@ -14,7 +15,17 @@ if __name__ == "__main__":
     camera_objects = []
 
     caps = [cv2.VideoCapture(i) for i in range(3)]
-    camera_objects.extend([OpenCVCamera(cap, width=args.width, height=args.height, ) for cap in caps if cap.read()[0]])
+    camera_objects.extend(
+        [
+            OpenCVCamera(
+                cap,
+                width=args.width,
+                height=args.height,
+            )
+            for cap in caps
+            if cap.read()[0]
+        ]
+    )
 
     try:
         import pyrealsense2 as rs
@@ -33,4 +44,3 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
-

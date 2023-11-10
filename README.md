@@ -24,7 +24,7 @@ If you want to use VR, install [oculus_reader](https://github.com/rail-berkeley/
 ### Demonstration collection
 To collect demos, run
 ```
-python scripts/collect_demos.py --path path/to/save/ --
+python scripts/collect_demos.py --path path/to/save/ --config path/to/robot/config
 ```
 
 ## NUC Setup
@@ -45,19 +45,12 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_FRANKA=ON
 make -j
 cd ../..
 ```
-4. Finally install polymetis: `pip install -e ./polymetis`
+4. Install polymetis: `pip install -e ./polymetis`
 
-To start the polymetis server, run
+Then, you can start the polymetis server as you would normally.
+
+If you want to use ZeroRPC to wrap polymetis, you need to additionally install the robots package, then run
 ```
-python nuc/start_polymetis_server.py
+python scripts/start_nuc_remote.py
 ```
 from the the NUC.
-
-
-## Example Scripts
-
-**Collecting Data for RT-X Finetuning**
-
-```
-python scripts/collect_demos.py --cameras agent wrist --normalize-actions 0 --channels-first 0 --instr "<language instruction>"
-```

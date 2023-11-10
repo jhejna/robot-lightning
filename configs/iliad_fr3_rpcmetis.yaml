@@ -1,0 +1,25 @@
+
+controller_class: ZeroRPCClient
+controller_kwargs:
+  ip_address: "172.16.0.130"
+  controller_class: PolyMetisController
+  controller_kwargs:
+    controller_type: CARTESIAN_DELTA
+    ip_address: localhost
+control_hz: 5
+random_init: True
+img_width: 128
+img_height: 128
+horizon: 250
+normalize_actions: True
+channels_first: True
+cameras:
+  agent:
+    camera_class: RealSenseCamera
+    camera_kwargs:
+      serial_number: asdf
+  wrist:
+    camera_class: OpenCVCamera
+    camera_kwargs:
+      id: 0
+
