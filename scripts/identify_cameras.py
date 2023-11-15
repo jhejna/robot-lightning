@@ -3,7 +3,7 @@ import argparse
 import cv2
 from matplotlib import pyplot as plt
 
-from robots.robot import OpenCVCamera, RealSenseCamera
+from robots.cameras import OpenCVCamera, RealSenseCamera
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -31,7 +31,7 @@ if __name__ == "__main__":
         import pyrealsense2 as rs
 
         context = rs.context()
-        camera_objects.extend([RealSenseCamera(device) for device in list(context.devices)])
+        camera_objects.extend([RealSenseCamera(device, args.width, args.height) for device in list(context.devices)])
     except ImportError:
         print("Warning: pyrealsense2 package not found")
 

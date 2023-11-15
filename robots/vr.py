@@ -151,8 +151,9 @@ class VRController(object):
         self.reset_orientation = True
         self.reset_state()
 
-        thread = threading.Thread(target=self._update_internal_state, args=(), daemon=True)
-        thread.start()
+        self._running = True
+        self.thread = threading.Thread(target=self._update_internal_state, args=(), daemon=True)
+        self.thread.start()
 
     def reset_state(self):
         self._state = {
@@ -169,7 +170,7 @@ class VRController(object):
 
     def _update_internal_state(self, num_wait_sec=5):
         last_read_time = time.time()
-        while True:
+        while self._running:
             # Regulate Read Frequency #
             time.sleep(1 / self.control_hz)
 
@@ -267,3 +268,7 @@ class VRController(object):
             if np.linalg.norm(action[:-1]) < self.min_magnitude:
                 action = None
             return action
+        
+    def __del__(self):
+        self._running = False
+        self.thread.join()

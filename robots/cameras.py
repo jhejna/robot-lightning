@@ -120,7 +120,7 @@ class RealSenseCamera(Camera):
 
     def __init__(self, serial_number, **kwargs):
         super().__init__(**kwargs)
-        self.serial_number = serial_number
+        self.serial_number = str(serial_number)
         self._pipeline = None
         self.align = None
         self.depth_filters = None
@@ -149,8 +149,7 @@ class RealSenseCamera(Camera):
     def get_frames(self):
         frames = self.pipeline.wait_for_frames()
         aligned_frames = self.align.process(frames)
-    
-        image = aligned_frames.get_color_frame()
+        image = np.asanyarray(aligned_frames.get_color_frame().get_data())
         image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         frames = dict(image=image)
@@ -171,7 +170,7 @@ class RealSenseCamera(Camera):
 class ThreadedRealSenseCamera(Camera):
     def __init__(self, serial_number, **kwargs):
         super().__init__(**kwargs)
-        self.serial_number = serial_number
+        self.serial_number = str(serial_number)
 
     @property
     def has_depth(self):
@@ -207,7 +206,7 @@ class ThreadedRealSenseCamera(Camera):
                 depth = np.asanyarray(depth.get_data())
             else:
                 self._depth = None
-            image = aligned_frames.get_color_frame()
+            image = np.asanyarray(aligned_frames.get_color_frame().get_data())
 
             self.lock.acquire()
             if self.depth:

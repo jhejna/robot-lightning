@@ -6,7 +6,7 @@ controller_kwargs:
   controller_kwargs:
     controller_type: CARTESIAN_DELTA
     ip_address: localhost
-control_hz: 5
+control_hz: 10
 random_init: True
 img_width: 128
 img_height: 128
@@ -17,9 +17,9 @@ cameras:
   agent:
     camera_class: RealSenseCamera
     camera_kwargs:
-      serial_number: 838212072814
+      serial_number: '838212072814'
   wrist:
     camera_class: RealSenseCamera
     camera_kwargs:
-      serial_number: 832112071449
+      serial_number: '832112071449'
 

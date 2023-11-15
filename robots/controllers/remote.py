@@ -49,6 +49,7 @@ class ZeroRPCClient(Controller):
         if self._client is None:
             self._client = zerorpc.Client(heartbeat=20)
             self._client.connect("tcp://" + self.ip_address + ":" + str(self.port))
+        return self._client
 
     @property
     def observation_space(self):

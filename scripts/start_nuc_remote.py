@@ -13,7 +13,7 @@ if __name__ == "__main__":
     with open(args.config, "r") as f:
         config = yaml.load(f, Loader=yaml.Loader)
 
-    assert config["controller"] == "ZeroRPCClient", "Environment must be using ZeroRPCClient."
+    assert config["controller_class"] == "ZeroRPCClient", "Environment must be using ZeroRPCClient."
     
     controller_class = config['controller_kwargs']['controller_class']
     controller_kwargs = config['controller_kwargs']['controller_kwargs']
