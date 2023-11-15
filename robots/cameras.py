@@ -1,8 +1,13 @@
 import numpy as np
 from typing import Dict, Union
-import cv2
 from abc import abstractmethod, abstractproperty
 import threading
+
+try:
+    import cv2
+    IMPORTED_CV2 = False
+except ImportError:
+    IMPORTED_CV2 = False
 
 try:
     import pyrealsense2 as rs
@@ -38,6 +43,7 @@ class OpenCVCamera(Camera):
     
     @property
     def cap(self):
+        assert IMPORTED_CV2, "cv2 not imported."
         if self._cap is None:
             self._cap = cv2.VideoCapture(self.id)
             # Values other than default 640x480 have not been tested yet
@@ -66,6 +72,7 @@ class ThreadedOpenCVCamera(Camera):
         return False
 
     def _init(self):
+        assert IMPORTED_CV2, "cv2 not imported."
         self._running = True
         self._image = None
         self.lock = threading.Lock()
@@ -124,6 +131,7 @@ class RealSenseCamera(Camera):
 
     @property
     def pipeline(self):
+        assert IMPORTED_PYREALSENSE, "pyrealsense2 not installed."
         if self._pipeline is None:
             self._pipeline = rs.pipeline()
             config = rs.config()
@@ -170,6 +178,7 @@ class ThreadedRealSenseCamera(Camera):
         return self.depth
 
     def _init(self):
+        assert IMPORTED_PYREALSENSE, "pyrealsense2 not installed."
         self._running = True
         self._image = None
         self._depth = None

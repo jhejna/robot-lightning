@@ -17,9 +17,9 @@ cameras:
   agent:
     camera_class: RealSenseCamera
     camera_kwargs:
-      serial_number: asdf
+      serial_number: 838212072814
   wrist:
-    camera_class: OpenCVCamera
+    camera_class: RealSenseCamera
     camera_kwargs:
-      id: 0
+      serial_number: 832112071449
 
