@@ -34,6 +34,31 @@ class OpenCVCamera(Camera):
     def __init__(self, id: Union[int, str] = None, **kwargs):
         super().__init__(**kwargs)
         self.id = id
+        self._cap = None
+    
+    @property
+    def cap(self):
+        if self._cap is None:
+            self._cap = cv2.VideoCapture(self.id)
+            # Values other than default 640x480 have not been tested yet
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.height)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.width)
+        return self._cap
+    
+    def get_frames(self):
+        retval, image = self.cap.read()
+        image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        return dict(image=image)
+
+    def close(self):
+        self.cap.release()
+        
+
+class ThreadedOpenCVCamera(Camera):
+    def __init__(self, id: Union[int, str] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.id = id
         self._running = False
 
     @property
@@ -58,7 +83,6 @@ class OpenCVCamera(Camera):
 
             retval, img = self._cap.read()
             if retval:
-                
                 self.lock.acquire()
                 self._image = img
                 self.lock.release()
@@ -86,6 +110,57 @@ class OpenCVCamera(Camera):
 
 
 class RealSenseCamera(Camera):
+
+    def __init__(self, serial_number, **kwargs):
+        super().__init__(**kwargs)
+        self.serial_number = serial_number
+        self._pipeline = None
+        self.align = None
+        self.depth_filters = None
+
+    @property
+    def has_depth(self):
+        return self.depth
+
+    @property
+    def pipeline(self):
+        if self._pipeline is None:
+            self._pipeline = rs.pipeline()
+            config = rs.config()
+            config.enable_device(self.serial_number)
+            config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
+            if self.depth:
+                config.enable_stream(rs.stream.color, 640, 480, rs.format.z16, 30)
+            self._pipeline.start(config)
+            self.align = rs.align(rs.stream.color)
+            # Setup other attributes
+            if self.has_depth:
+                self.depth_filters = [rs.spatial_filter(), rs.temporal_filter()]
+        return self._pipeline
+
+    def get_frames(self):
+        frames = self.pipeline.wait_for_frames()
+        aligned_frames = self.align.process(frames)
+    
+        image = aligned_frames.get_color_frame()
+        image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        frames = dict(image=image)
+        if self.depth:
+            depth = aligned_frames.get_depth_frame()
+            for rs_filter in self.depth_filters:
+                depth = rs_filter(depth)
+            depth = np.asanyarray(depth.get_data())
+            depth = cv2.resize(depth, (self.width, self.height), interpolation=cv2.INTER_NEAREST)
+            if len(depth.shape) == 2:
+                depth = np.expand_dims(depth, axis=-1)
+            frames["depth"] = depth
+        return frames
+
+    def close(self):
+        self.pipeline.stop()
+
+class ThreadedRealSenseCamera(Camera):
     def __init__(self, serial_number, **kwargs):
         super().__init__(**kwargs)
         self.serial_number = serial_number
@@ -111,10 +186,11 @@ class RealSenseCamera(Camera):
         if self.depth:
             config.enable_stream(rs.stream.color, 640, 480, rs.format.z16, 30)
             depth_filters = [rs.spatial_filter(), rs.temporal_filter()]
-
+            align = rs.align(rs.stream.color)
+        pipeline.start(config)
         while self._running:
             frames = pipeline.wait_for_frames()
-            aligned_frames = self.align.process(frames)
+            aligned_frames = align.process(frames)
             if self.depth:
                 depth = aligned_frames.get_depth_frame()
                 for rs_filter in depth_filters:
