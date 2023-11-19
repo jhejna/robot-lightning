@@ -1,10 +1,11 @@
 import argparse
+
 import yaml
 import zerorpc
+
 from robots.controllers.remote import ZeroRPCServer
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="path to config file.")
     args = parser.parse_args()
@@ -14,9 +15,9 @@ if __name__ == "__main__":
         config = yaml.load(f, Loader=yaml.Loader)
 
     assert config["controller_class"] == "ZeroRPCClient", "Environment must be using ZeroRPCClient."
-    
-    controller_class = config['controller_kwargs']['controller_class']
-    controller_kwargs = config['controller_kwargs']['controller_kwargs']
+
+    controller_class = config["controller_kwargs"]["controller_class"]
+    controller_kwargs = config["controller_kwargs"]["controller_kwargs"]
 
     # Parse the controller and controller kwargs
     server = ZeroRPCServer(controller_class, **controller_kwargs)

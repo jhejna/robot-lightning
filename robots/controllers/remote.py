@@ -1,8 +1,9 @@
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Optional, Union
 
 import gym
 import numpy as np
 import zerorpc
+
 import robots
 
 from .controller import Controller, DummyController
@@ -18,6 +19,7 @@ def parse_from_lists(item: Union[Dict, List]):
     else:
         raise ValueError("Invalid item passed to parse_from_lists")
 
+
 def parse_to_lists(item):
     if isinstance(item, (dict, gym.spaces.Dict)):
         return {k: parse_to_lists(v) for k, v in item.items()}
@@ -28,6 +30,7 @@ def parse_to_lists(item):
     else:
         raise ValueError("Invalid item passed to parse_to_list")
 
+
 class ZeroRPCClient(Controller):
     """
     A simple ZeroRPC Controller that communicates with a controller that runs natively on the NUC.
@@ -36,14 +39,20 @@ class ZeroRPCClient(Controller):
     2. R2D2 (it natively does something like this to get over the woes of polymetis.)
     """
 
-    def __init__(self, controller_class: DummyController, controller_kwargs: Optional[Dict] = None, ip_address: str = "127.16.0.1", port: int = 4242):
+    def __init__(
+        self,
+        controller_class: DummyController,
+        controller_kwargs: Optional[Dict] = None,
+        ip_address: str = "127.16.0.1",
+        port: int = 4242,
+    ):
         self.ip_address = ip_address
         self.port = port
         self._client = None
         controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class
         controller_kwargs = dict() if controller_kwargs is None else controller_kwargs
         self.controller = controller_class(**controller_kwargs)
-        
+
     @property
     def client(self):
         if self._client is None:
@@ -78,10 +87,9 @@ class ZeroRPCClient(Controller):
         Reset the robot to HOME, randomize if asked for.
         """
         self.client.reset(randomize=randomize)
-    
+
 
 class ZeroRPCServer(Controller):
-
     def __init__(self, controller_class, controller_kwargs: Optional[Dict] = None):
         controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class
         controller_kwargs = dict() if controller_kwargs is None else controller_kwargs
@@ -94,7 +102,6 @@ class ZeroRPCServer(Controller):
     @property
     def action_space(self):
         return self.controller.action_space
-
 
     def update(self, action):
         """

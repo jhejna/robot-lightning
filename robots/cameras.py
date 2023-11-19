@@ -1,22 +1,25 @@
-import numpy as np
-from typing import Dict, Union
-from abc import abstractmethod, abstractproperty
 import threading
+from abc import abstractmethod, abstractproperty
+from typing import Dict, Optional, Union
+
+import numpy as np
 
 try:
     import cv2
+
     IMPORTED_CV2 = False
 except ImportError:
     IMPORTED_CV2 = False
 
 try:
     import pyrealsense2 as rs
+
     IMPORTED_PYREALSENSE = True
 except ImportError:
     IMPORTED_PYREALSENSE = False
 
-class Camera(object):
 
+class Camera(object):
     def __init__(self, width: int, height: int, depth: bool = False):
         self.width = width
         self.height = height
@@ -36,11 +39,11 @@ class Camera(object):
 
 
 class OpenCVCamera(Camera):
-    def __init__(self, id: Union[int, str] = None, **kwargs):
+    def __init__(self, id: Optional[Union[int, str]] = None, **kwargs):
         super().__init__(**kwargs)
         self.id = id
         self._cap = None
-    
+
     @property
     def cap(self):
         assert IMPORTED_CV2, "cv2 not imported."
@@ -50,7 +53,7 @@ class OpenCVCamera(Camera):
             self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.height)
             self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.width)
         return self._cap
-    
+
     def get_frames(self):
         retval, image = self.cap.read()
         image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
@@ -59,10 +62,10 @@ class OpenCVCamera(Camera):
 
     def close(self):
         self.cap.release()
-        
+
 
 class ThreadedOpenCVCamera(Camera):
-    def __init__(self, id: Union[int, str] = None, **kwargs):
+    def __init__(self, id: Optional[Union[int, str]] = None, **kwargs):
         super().__init__(**kwargs)
         self.id = id
         self._running = False
@@ -78,7 +81,7 @@ class ThreadedOpenCVCamera(Camera):
         self.lock = threading.Lock()
         self.thread = threading.Thread(target=self._reader, daemon=True)
         self.thread.start()
-        
+
     def _reader(self):
         # We need to parse the CV Camera ID
         self._cap = cv2.VideoCapture(self.id)
@@ -87,7 +90,6 @@ class ThreadedOpenCVCamera(Camera):
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.width)
 
         while self._running:
-
             retval, img = self._cap.read()
             if retval:
                 self.lock.acquire()
@@ -104,7 +106,7 @@ class ThreadedOpenCVCamera(Camera):
             self.lock.acquire()
             if self._image is not None:
                 image = self._image
-                self._image = None # set back to None.
+                self._image = None  # set back to None.
             self.lock.release()
         image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -117,7 +119,6 @@ class ThreadedOpenCVCamera(Camera):
 
 
 class RealSenseCamera(Camera):
-
     def __init__(self, serial_number, **kwargs):
         super().__init__(**kwargs)
         self.serial_number = str(serial_number)
@@ -166,6 +167,7 @@ class RealSenseCamera(Camera):
 
     def close(self):
         self.pipeline.stop()
+
 
 class ThreadedRealSenseCamera(Camera):
     def __init__(self, serial_number, **kwargs):
@@ -225,7 +227,7 @@ class ThreadedRealSenseCamera(Camera):
             self.lock.acquire()
             if self._image is not None:
                 image, depth = self._image, self._depth
-                self._image, self._depth = None, None # set back to None.
+                self._image, self._depth = None, None  # set back to None.
             self.lock.release()
 
         # Process the image

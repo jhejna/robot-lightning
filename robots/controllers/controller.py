@@ -1,11 +1,14 @@
 from abc import abstractmethod, abstractproperty
-import numpy as np
+
 import gym
+import numpy as np
+
 
 class Controller(object):
     """
     Note: controllers should all follow a LazyInit standard.
     """
+
     @abstractproperty
     def observation_space(self) -> gym.Space:
         raise NotImplementedError

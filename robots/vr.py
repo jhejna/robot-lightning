@@ -268,7 +268,7 @@ class VRController(object):
             if np.linalg.norm(action[:-1]) < self.min_magnitude:
                 action = None
             return action
-        
+
     def __del__(self):
         self._running = False
         self.thread.join()

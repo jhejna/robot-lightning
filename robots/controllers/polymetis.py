@@ -2,12 +2,14 @@ from functools import cached_property
 
 import gym
 import numpy as np
+
 from .controller import Controller
 
 try:
     import polymetis
     import torch
     from scipy.spatial.transform import Rotation
+
     POLYMETIS_IMPORTED = True
 except ImportError:
     print("[research] Skipping polymetis, torch, and scipy. One of the packages was not found")

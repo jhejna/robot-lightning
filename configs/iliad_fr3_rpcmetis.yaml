@@ -22,4 +22,3 @@ cameras:
     camera_class: RealSenseCamera
     camera_kwargs:
       serial_number: '832112071449'
-

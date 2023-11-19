@@ -149,7 +149,12 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
                 data = np.load(f)
                 data = {k: data[k] for k in data.keys()}
 
-            use_lightning_format = len(set(map(len, data.values()))) == 1
+            # Detect the format of the example
+            if np.all(data["action"][0] == 0.0) and len(set(map(len, data.values()))) == 1:
+                use_lightning_format = True
+            else:
+                use_lightning_format = False
+
             data = nest_dict(data)
 
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end

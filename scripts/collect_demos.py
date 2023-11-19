@@ -1,7 +1,9 @@
 import argparse
 import datetime
+import filecmp
 import io
 import os
+import shutil
 from typing import Any, Dict, Iterable, Tuple
 
 import gym
@@ -125,10 +127,10 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=True, help="Path to config file.")
     parser.add_argument("--instr", type=str, default=None, help="Language instruction.")
     parser.add_argument(
-        "--lightning-format",
-        type=int,
-        default=1,
-        help="Whether or not to save demos compatible with research-lightning",
+        "--format",
+        choices=["lightning", "bc", "rl"],
+        default="rl",
+        help="How to format the demos for saving.",
     )
     parser.add_argument(
         "--vr-kwargs",
@@ -151,18 +153,27 @@ if __name__ == "__main__":
     with open(args.config, "r") as f:
         config = yaml.load(f, Loader=yaml.Loader)
 
+    config_save_path = os.path.join(args.path, "config.yaml")
+    if os.path.exists(config_save_path):
+        # Check to make sure that the loaded configs were equal
+        assert filecmp.cmp(
+            args.config, config_save_path
+        ), "Trying to add more demos to a folder with a different config."
+
     env = robots.RobotEnv(**config)
     vr = robots.VRController(**vr_kwargs)
 
     os.makedirs(args.path, exist_ok=True)
+    # Copy the config to the demo storage location.
+    shutil.copy(args.config, os.path.join(args.path, "config.yaml"))
 
     num_episodes = 0
     while True:
         done = False
 
-        if args.lightning_format:
+        if args.format == "lightning":
             episode = dict(
-                action=[env.action_space.sample()],
+                action=[np.zeros_like(env.action_space.sample())],
                 reward=[0.0],
                 done=[False],
                 discount=[1.0],
@@ -184,7 +195,7 @@ if __name__ == "__main__":
         append(episode, dict(obs=obs))
 
         # See if we want to use language.
-        lang = args.instr if args.instr is not None else input("[robots] Language instruction?")
+        lang = args.instr if args.instr is not None else input("[robots] Language instruction? ")
         lang = None if lang == "" else lang
         if lang is not None:
             episode["language_instruction"] = [lang]
@@ -215,13 +226,17 @@ if __name__ == "__main__":
         episode["done"][-1] = True
         episode["reward"][-1] = 1.0
 
+        if args.format == "bc":
+            # Remove the final observation
+            episode["obs"] = episode["obs"][:-1]
+
         ep_len = len(episode["done"])
         num_episodes += 1
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         ep_filename = f"{ts}_{num_episodes}_{ep_len}.npz"
         save_episode(episode, os.path.join(args.path, ep_filename), enforce_length=args.lightning_format)
 
-        to_break = input("[robots] Quit (q)?")
+        to_break = input("[robots] Quit (q)? ")
         if to_break == "q":
             break
 
