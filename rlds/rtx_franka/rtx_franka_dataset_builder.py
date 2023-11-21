@@ -61,13 +61,13 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
                             "observation": tfds.features.FeaturesDict(
                                 {
                                     "agent_image": tfds.features.Image(
-                                        shape=(128, 128, 3),
+                                        shape=(256, 256, 3),
                                         dtype=np.uint8,
                                         encoding_format="png",
                                         doc="Main camera RGB observation.",
                                     ),
                                     "wrist_image": tfds.features.Image(
-                                        shape=(128, 128, 3),
+                                        shape=(256, 256, 3),
                                         dtype=np.uint8,
                                         encoding_format="png",
                                         doc="Wrist camera RGB observation.",
