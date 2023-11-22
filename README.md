@@ -27,6 +27,12 @@ To collect demos, run
 python scripts/collect_demos.py --path path/to/save/ --config path/to/robot/config
 ```
 
+If the oculus isn't working due to adb permissions, run the following:
+```
+sudo adb kill-server
+sudo adb start-server
+```
+
 ## NUC Setup
 
 On the NUC, first make sure to install the intel realtime kernel. Then, follow the setup instructions for individual packages.

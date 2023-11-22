@@ -6,12 +6,14 @@ import os
 
 import numpy as np
 import yaml
+from matplotlib import pyplot as plt
 
 import robots
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to demonstration.")
+    parser.add_argument("--camera-name", type=str, default="agent", help="Path to demonstration.")
     args = parser.parse_args()
 
     assert os.path.exists(args.path), "Demo did not exist."
@@ -26,9 +28,23 @@ if __name__ == "__main__":
     with open(args.path, "rb") as f:
         data = np.load(f)
         actions = data["action"]
+        images = data["obs." + args.camera_name + "_image"]
+        is_channels_first = images.shape[-1] != 3
 
     env.reset()
-    for i in range(actions.shape[0]):
+    print("[robots] Finished reset.")
+    image = images[0]
+    if is_channels_first:
+        image = image.transpose(1, 2, 0)
+    display = plt.imshow(image)
+    plt.ion()
+    plt.show()
+    for i in range(min(actions.shape[0], images.shape[0] - 1)):
         env.step(actions[i])
+        image = images[i + 1]
+        if is_channels_first:
+            image = image.transpose(1, 2, 0)
+        display.set_data(image)
+        plt.pause(0.001)
 
     print("Done replaying.")

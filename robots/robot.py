@@ -37,7 +37,7 @@ class RobotEnv(gym.Env):
         depth: bool = False,
         cameras: Optional[Dict] = None,
         channels_first: bool = True,
-        horizon: int = 500,
+        horizon: Optional[int] = 500,
         normalize_actions: bool = True,
     ):
         self.random_init = random_init
@@ -102,18 +102,18 @@ class RobotEnv(gym.Env):
 
         self._steps += 1
 
-        terminated = self._steps == self.horizon
+        terminated = self.horizon is not None and self._steps == self.horizon
         info = dict(discount=1 - float(terminated))
 
         if NEW_GYM_API:
             # Note that this is following the Gym 0.26 API for termination.
-            return self._get_obs(), 0, False, self._steps == self.horizon, info
+            return self._get_obs(), 0, False, terminated, info
         else:
             return self._get_obs(), 0, terminated, info
 
     def reset(self):
         self.controller.reset(randomize=self.random_init)
-        time.sleep(3.0)
+        time.sleep(1.0)
         self._steps = 0
         if NEW_GYM_API:
             return self._get_obs(), dict()

@@ -136,11 +136,15 @@ class VRController(object):
 
         # robot_orientation is defined by where the gripper
         # is with respect to the teleoperator when facing forward
-        if robot_orientation == "gripper_on_left":
+        if robot_orientation == "left":
             self.global_to_env_mat = np.asarray(
                 [[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]], dtype=np.float32
             )
-        elif robot_orientation == "gripper_in_front":
+        elif robot_orientation == "right":
+            self.global_to_env_mat = np.asarray(
+                [[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]], dtype=np.float32
+            )
+        elif robot_orientation == "front":
             self.global_to_env_mat = np.asarray(
                 [[0, -1, 0, 0], [-1, 0, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]], dtype=np.float32
             )

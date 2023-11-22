@@ -17,8 +17,8 @@ cameras:
   agent:
     camera_class: RealSenseCamera
     camera_kwargs:
-      serial_number: '838212072814'
+      serial_number: '832112071449'
   wrist:
     camera_class: RealSenseCamera
     camera_kwargs:
-      serial_number: '832112071449'
+      serial_number: '838212072814'

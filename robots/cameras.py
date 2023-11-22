@@ -7,7 +7,7 @@ import numpy as np
 try:
     import cv2
 
-    IMPORTED_CV2 = False
+    IMPORTED_CV2 = True
 except ImportError:
     IMPORTED_CV2 = False
 
@@ -140,11 +140,12 @@ class RealSenseCamera(Camera):
             config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
             if self.depth:
                 config.enable_stream(rs.stream.color, 640, 480, rs.format.z16, 30)
+                self.depth_filters = [rs.spatial_filter(), rs.temporal_filter()]
             self._pipeline.start(config)
             self.align = rs.align(rs.stream.color)
-            # Setup other attributes
-            if self.has_depth:
-                self.depth_filters = [rs.spatial_filter(), rs.temporal_filter()]
+            # warmup cameras
+            for _ in range(2):
+                self._pipeline.wait_for_frames()
         return self._pipeline
 
     def get_frames(self):
@@ -152,7 +153,6 @@ class RealSenseCamera(Camera):
         aligned_frames = self.align.process(frames)
         image = np.asanyarray(aligned_frames.get_color_frame().get_data())
         image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         frames = dict(image=image)
         if self.depth:
             depth = aligned_frames.get_depth_frame()
@@ -232,7 +232,6 @@ class ThreadedRealSenseCamera(Camera):
 
         # Process the image
         image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         frames = dict(image=image)
         if self.depth:
             depth = cv2.resize(depth, (self.width, self.height), interpolation=cv2.INTER_NEAREST)

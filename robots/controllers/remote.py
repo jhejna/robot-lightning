@@ -90,10 +90,11 @@ class ZeroRPCClient(Controller):
 
 
 class ZeroRPCServer(Controller):
-    def __init__(self, controller_class, controller_kwargs: Optional[Dict] = None):
+    def __init__(self, controller_class, controller_kwargs: Optional[Dict] = None, randomize: bool = False):
         controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class
         controller_kwargs = dict() if controller_kwargs is None else controller_kwargs
         self.controller = controller_class(**controller_kwargs)
+        self.randomize = randomize
 
     @property
     def observation_space(self):
@@ -118,8 +119,10 @@ class ZeroRPCServer(Controller):
         """
         return parse_to_lists(self.controller.get_state())
 
-    def reset(self, randomize=False):
+    def reset(self, randomize: Optional[bool] = None):
         """
         Reset the robot to HOME, randomize if asked for.
         """
+        if randomize is None:
+            randomize = self.randomize
         self.controller.reset(randomize=randomize)

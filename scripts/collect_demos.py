@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--format",
         choices=["lightning", "bc", "rl"],
-        default="rl",
+        default="lightning",
         help="How to format the demos for saving.",
     )
     parser.add_argument(
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         rot_action_gain=1.0,
         gripper_action_gain=1.0,
         min_magnitude=0.15,
-        robot_orientation="gripper_on_left",
+        robot_orientation="right",
     )
     vr_kwargs.update(parse_vars(args.vr_kwargs))
 
@@ -166,6 +166,8 @@ if __name__ == "__main__":
     os.makedirs(args.path, exist_ok=True)
     # Copy the config to the demo storage location.
     shutil.copy(args.config, os.path.join(args.path, "config.yaml"))
+
+    print("[robots] Starting data collection.")
 
     num_episodes = 0
     while True:
@@ -230,11 +232,15 @@ if __name__ == "__main__":
             # Remove the final observation
             episode["obs"] = episode["obs"][:-1]
 
-        ep_len = len(episode["done"])
-        num_episodes += 1
-        ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-        ep_filename = f"{ts}_{num_episodes}_{ep_len}.npz"
-        save_episode(episode, os.path.join(args.path, ep_filename), enforce_length=args.lightning_format)
+        if controller_info["user_set_success"]:
+            print("[robots] Saving episode.")
+            ep_len = len(episode["done"])
+            num_episodes += 1
+            ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+            ep_filename = f"{ts}_{num_episodes}_{ep_len}.npz"
+            save_episode(episode, os.path.join(args.path, ep_filename), enforce_length=(args.format != "rl"))
+        else:
+            print("[robots] Discarding episode.")
 
         to_break = input("[robots] Quit (q)? ")
         if to_break == "q":

@@ -20,7 +20,7 @@ if __name__ == "__main__":
     controller_kwargs = config["controller_kwargs"]["controller_kwargs"]
 
     # Parse the controller and controller kwargs
-    server = ZeroRPCServer(controller_class, **controller_kwargs)
+    server = ZeroRPCServer(controller_class, controller_kwargs)
     s = zerorpc.Server(server)
     s.bind("tcp://0.0.0.0:4242")
     s.run()
