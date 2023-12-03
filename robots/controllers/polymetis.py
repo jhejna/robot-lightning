@@ -1,6 +1,7 @@
 from functools import cached_property
 
 import gym
+import time
 import numpy as np
 
 from .controller import Controller
@@ -158,8 +159,13 @@ class PolyMetisController(Controller):
     def reset(self, randomize: bool = True):
         if self.robot.is_running_policy():
             self.robot.terminate_current_policy()
-        self.update_gripper(0, blocking=False)  # Close the gripper
+        self.update_gripper(0, blocking=True)  # Close the gripper
+        print("resetting")
         self.robot.go_home()
+        time.sleep(3.0)
+        # self.robot.go_home(time_to_go=8.0)
+        # self.robot.go_home(time_to_go=8.0)
+        # self.robot.go_home(time_to_go=10.0, timeout=20, blocking=True)
         if randomize:
             # Get the current position and then add some noise to it
             joint_positions = self.robot.get_joint_positions()
