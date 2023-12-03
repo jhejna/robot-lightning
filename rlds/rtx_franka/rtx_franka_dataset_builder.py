@@ -39,7 +39,7 @@ def nest_dict(d: Dict, separator: str = ".") -> Dict:
     return nested_d
 
 
-class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
+class RtxFrankaDataset(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
     VERSION = tfds.core.Version("1.0.0")
@@ -72,7 +72,7 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
                                         encoding_format="png",
                                         doc="Wrist camera RGB observation.",
                                     ),
-                                    "state": tfds.features.FeatureDict(
+                                    "state": tfds.features.FeaturesDict(
                                         {
                                             "joint_positions": tfds.features.Tensor(
                                                 shape=(7,), dtype=np.float32, doc="Robot joint positions"
@@ -136,8 +136,8 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
     def _split_generators(self, dl_manager: tfds.download.DownloadManager):
         """Define data splits."""
         return {
-            "train": self._generate_examples(path="path/to/train/demos/*.npz"),
-            "val": self._generate_examples(path="path/to/val/demos/*.npz"),
+            "train": self._generate_examples(path="path/to/train/*.npz"),
+            "val": self._generate_examples(path="path/to/val/*.npz"),
         }
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
@@ -145,7 +145,7 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
 
         def _parse_example(episode_path):
             # load raw data --> this should change for your dataset
-            with open(path, "rb") as f:
+            with open(episode_path, "rb") as f:
                 data = np.load(f)
                 data = {k: data[k] for k in data.keys()}
 
@@ -164,6 +164,7 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
             language_instruction = data["language_instruction"][0]
             language_embedding = self._embed([language_instruction])[0].numpy()
             ep_len = len(data["done"])
+            assert ep_len > 3, episode_path + " was only length " + str(ep_len)
             for i in range(1, ep_len) if use_lightning_format else range(ep_len):
                 # compute Kona language embedding
                 obs_idx = i - 1 if use_lightning_format else i
@@ -174,6 +175,7 @@ class RTXFrankaDataset(tfds.core.GeneratorBasedBuilder):
                     "discount": get_from_batch(data["discount"], i),
                     "is_first": obs_idx == 0,
                     "is_last": i == ep_len,
+                    "is_terminal": i == ep_len,
                     "language_instruction": language_instruction,
                     "language_embedding": language_embedding,
                 }
