@@ -14,16 +14,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to demonstration.")
     parser.add_argument("--camera-name", type=str, default="agent", help="Path to demonstration.")
+    parser.add_argument("--use-robot", type=int, default=1, help="Set to zero to disable the robot.")
     args = parser.parse_args()
 
     assert os.path.exists(args.path), "Demo did not exist."
     demo_dir = os.path.dirname(args.path)
     config_path = os.path.join(demo_dir, "config.yaml")
-
-    with open(config_path, "r") as f:
-        config = yaml.load(f, Loader=yaml.Loader)
-
-    env = robots.RobotEnv(**config)
 
     with open(args.path, "rb") as f:
         data = np.load(f)
@@ -31,8 +27,13 @@ if __name__ == "__main__":
         images = data["obs." + args.camera_name + "_image"]
         is_channels_first = images.shape[-1] != 3
 
-    env.reset()
-    print("[robots] Finished reset.")
+    if args.use_robot:
+        with open(config_path, "r") as f:
+            config = yaml.load(f, Loader=yaml.Loader)
+        env = robots.RobotEnv(**config)
+        env.reset()
+        print("[robots] Finished reset.")
+
     image = images[0]
     if is_channels_first:
         image = image.transpose(1, 2, 0)
@@ -40,11 +41,12 @@ if __name__ == "__main__":
     plt.ion()
     plt.show()
     for i in range(min(actions.shape[0], images.shape[0] - 1)):
-        env.step(actions[i])
+        if args.use_robot:
+            env.step(actions[i])
         image = images[i + 1]
         if is_channels_first:
             image = image.transpose(1, 2, 0)
         display.set_data(image)
         plt.pause(0.001)
 
-    print("Done replaying.")
+    print("[robots] Done replaying.")
