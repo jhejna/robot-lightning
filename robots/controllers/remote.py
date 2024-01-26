@@ -16,8 +16,10 @@ def parse_from_lists(item: Union[Dict, List]):
         return gym.spaces.Box(low=parse_from_lists(item["low"]), high=parse_from_lists(item["high"]), dtype=np.float32)
     elif isinstance(item, dict):
         return {k: parse_from_lists(v) for k, v in item.items()}
+    elif isinstance(item, bool):
+        return item
     else:
-        raise ValueError("Invalid item passed to parse_from_lists")
+        raise ValueError(f"Invalid item of type {type(item)} passed to parse_from_lists")
 
 
 def parse_to_lists(item):
@@ -27,8 +29,10 @@ def parse_to_lists(item):
         return item.tolist()
     elif isinstance(item, gym.spaces.Box):
         return dict(low=item.low.tolist(), high=item.high.tolist())
+    elif isinstance(item, bool):
+        return item
     else:
-        raise ValueError("Invalid item passed to parse_to_list")
+        raise ValueError(f"Invalid item of type {type(item)} passed to parse_to_lists")
 
 
 class ZeroRPCClient(Controller):
@@ -68,11 +72,11 @@ class ZeroRPCClient(Controller):
     def action_space(self):
         return self.controller.action_space
 
-    def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> None:
+    def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> Dict:
         """
         Updates the robot controller with the action
         """
-        self.client.update(parse_to_lists(action))
+        return parse_from_lists(self.client.update(parse_to_lists(action)))
 
     def get_state(self):
         """
@@ -109,12 +113,12 @@ class ZeroRPCServer(Controller):
     def action_space(self):
         return self.controller.action_space
 
-    def update(self, action: List[float], controller_type: Optional[str] = None) -> None:
+    def update(self, action: List[float], controller_type: Optional[str] = None) -> Dict:
         """
         Updates the robot controller with the action
         """
         action = np.array(action, dtype=np.float32)
-        self.controller.update(action)
+        return parse_to_lists(self.controller.update(action))
 
     def get_state(self):
         """

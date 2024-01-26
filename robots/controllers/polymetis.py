@@ -206,18 +206,20 @@ class PolyMetisController(Controller):
                 torch.from_numpy(ee_pos_desired), torch.from_numpy(ee_rot_desired.as_quat()), self.robot.get_joint_positions()
             )
             joint_delta_desired = joint_pos_desired - self.state['joint_pos']
+            
+            success = success.item()
 
         # Update the gripper. Note that the gripper action is always an absolute desired position.
-        gripper_pos_desired = self.update_gripper(gripper_action, blocking=False)
+        gripper_pos_desired = self.update_gripper(gripper_action, blocking=False).reshape([1])
 
         # We return the equivalent actions that could have been taken with different
         # controller_types.
         equivalent_actions = {
             "JOINT_IMPEDANCE": np.concatenate([joint_pos_desired, gripper_pos_desired]),
             "JOINT_DELTA": np.concatenate([joint_delta_desired, gripper_pos_desired]),
-            "CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_euler(), gripper_pos_desired]),
+            "CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_euler('xyz'), gripper_pos_desired]),
             "CARTESIAN_ROT6D_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_rot6d(), gripper_pos_desired]),
-            "CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_desired, ee_rot_delta_desired.as_euler(), gripper_pos_desired]),
+            "CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_desired, ee_rot_delta_desired.as_euler('xyz'), gripper_pos_desired]),
             "success": success,
         }
 
@@ -225,7 +227,7 @@ class PolyMetisController(Controller):
         if success:
             self.robot.update_desired_joint_positions(joint_pos_desired)
 
-        return success, equivalent_actions
+        return equivalent_actions
 
     def get_state(self):
         """
