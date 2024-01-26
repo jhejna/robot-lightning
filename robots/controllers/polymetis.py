@@ -238,8 +238,8 @@ class PolyMetisController(Controller):
         gripper_pos = 1 - (gripper_state.width / self._max_gripper_width)
         self._updated = False
         self.state = dict(
-            joint_positions=np.array(robot_state.joint_positions, dtype=np.float32),
-            joint_velocities=np.array(robot_state.joint_velocities, dtype=np.float32),
+            joint_pos=np.array(robot_state.joint_positions, dtype=np.float32),
+            joint_vel=np.array(robot_state.joint_velocities, dtype=np.float32),
             ee_pos=ee_pos.numpy(),
             ee_quat=ee_quat.numpy(),
             gripper_pos=np.asarray([gripper_pos], dtype=np.float32),
