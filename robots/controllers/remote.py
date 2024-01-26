@@ -87,6 +87,11 @@ class ZeroRPCClient(Controller):
         Reset the robot to HOME, randomize if asked for.
         """
         self.client.reset(randomize=randomize)
+    
+    def send_command(self, fn_name, *args, **kwargs):
+        args = (parse_to_lists(arg) for arg in args)
+        kwargs = {k: parse_to_lists(v) for k, v in kwargs.items()}
+        return parse_from_lists(self.client.send_command(fn_name, *args, **kwargs))
 
 
 class ZeroRPCServer(Controller):
@@ -126,3 +131,6 @@ class ZeroRPCServer(Controller):
         if randomize is None:
             randomize = self.randomize
         self.controller.reset(randomize=randomize)
+
+    def send_command(self, fn_name, *args, **kwargs):
+        return parse_to_lists(self.controller.evaluate_command(fn_name, *args, **kwargs))
