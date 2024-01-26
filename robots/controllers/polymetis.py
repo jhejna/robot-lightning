@@ -261,16 +261,7 @@ class PolyMetisController(Controller):
             randomized_joint_positions = np.array(joint_positions, dtype=np.float32) + noise
             self.robot.move_to_joint_positions(torch.from_numpy(randomized_joint_positions))
 
-        if self.controller_type == "JOINT_IMPEDANCE":
-            self.robot.start_joint_impedance()
-        elif self.controller_type == "CARTESIAN_IMPEDANCE":
-            self.robot.start_cartesian_impedance()
-        elif self.controller_type == "JOINT_DELTA":
-            self.robot.start_joint_impedance()
-        elif self.controller_type == "CARTESIAN_DELTA":
-            self.robot.start_cartesian_impedance()
-        else:
-            raise ValueError("Invalid Controller type provided")
+        self.robot.start_joint_impedance()
 
     def evaluate_command(self, fn_name, *args, **kwargs):
         return getattr(self.robot, fn_name)(*args, **kwargs)
