@@ -68,7 +68,7 @@ class ZeroRPCClient(Controller):
     def action_space(self):
         return self.controller.action_space
 
-    def update(self, action):
+    def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> None:
         """
         Updates the robot controller with the action
         """
@@ -109,7 +109,7 @@ class ZeroRPCServer(Controller):
     def action_space(self):
         return self.controller.action_space
 
-    def update(self, action):
+    def update(self, action: List[float], controller_type: Optional[str] = None) -> None:
         """
         Updates the robot controller with the action
         """
