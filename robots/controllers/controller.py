@@ -2,6 +2,7 @@ from abc import abstractmethod, abstractproperty
 
 import gym
 import numpy as np
+from typing import Optional
 
 
 class Controller(object):
@@ -18,7 +19,7 @@ class Controller(object):
         raise NotImplementedError
 
     @abstractmethod
-    def update(self, action: np.ndarray) -> None:
+    def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> None:
         """
         Updates the robot controller with the action
         """
@@ -54,7 +55,7 @@ class DummyController(Controller):
     def action_space(self):
         return gym.spaces.Box(low=-1, high=1, shape=(7,))
 
-    def update(self, action: np.ndarray):
+    def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> None:
         pass
 
     def get_state(self):
