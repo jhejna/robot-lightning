@@ -177,7 +177,7 @@ class PolyMetisController(Controller):
                 joint_pos_desired = np.clip(joint_pos_desired, self.JOINT_LOW, self.JOINT_HIGH)
             
             # Compute ee_pos_desired, ee_rot_desired, ee_pos_delta_desired, and ee_rot_delta_desired
-            ee_pos_desired, ee_quat_desired = self.robot.robot_model.forward_kinematics(torch.Tensor(joint_pos_desired)).numpy()
+            ee_pos_desired, ee_quat_desired = self.robot.robot_model.forward_kinematics(torch.from_numpy(joint_pos_desired)).numpy()
             ee_pos_delta_desired = ee_pos_desired - self.state['ee_pos']
             ee_rot_desired = Rotation.from_quat(ee_quat_desired)
             ee_rot_delta_desired = ee_rot_desired / Rotation.from_quat(self.state['ee_quat']) # TODO: Check I am dividing in the right order.
@@ -203,7 +203,7 @@ class PolyMetisController(Controller):
             
             # Compute joint_pos_desired and joint_delta_desired
             joint_pos_desired, success = self.robot.solve_inverse_kinematics(
-                ee_pos_desired, ee_rot_desired.as_quat(), self.robot.get_joint_positions()
+                torch.from_numpy(ee_pos_desired), torch.from_numpy(ee_rot_desired.as_quat()), self.robot.get_joint_positions()
             )
             joint_delta_desired = joint_pos_desired - self.state['joint_pos']
 
@@ -218,12 +218,14 @@ class PolyMetisController(Controller):
             "CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_euler(), gripper_pos_desired]),
             "CARTESIAN_ROT6D_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_rot6d(), gripper_pos_desired]),
             "CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_desired, ee_rot_delta_desired.as_euler(), gripper_pos_desired]),
+            "success": success,
         }
 
         # Update the robot
-        self.robot.update_desired_joint_positions(joint_pos_desired)
+        if success:
+            self.robot.update_desired_joint_positions(joint_pos_desired)
 
-        return equivalent_actions
+        return success, equivalent_actions
 
     def get_state(self):
         """
