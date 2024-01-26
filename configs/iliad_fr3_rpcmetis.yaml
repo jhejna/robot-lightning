@@ -1,10 +1,10 @@
 
 controller_class: ZeroRPCClient
 controller_kwargs:
-  ip_address: "172.16.0.130"
+  ip_address: "172.16.0.1"
   controller_class: PolyMetisController
   controller_kwargs:
-    controller_type: CARTESIAN_DELTA
+    controller_type: CARTESIAN_EULER_DELTA
     ip_address: localhost
 control_hz: 10
 random_init: True

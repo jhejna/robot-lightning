@@ -7,15 +7,15 @@ import numpy as np
 from typing import List, Union
 
 from .controller import Controller
+from scipy.spatial.transform import Rotation as ScipyRotation
 
 try:
     import polymetis
     import torch
-    from scipy.spatial.transform import Rotation as ScipyRotation
 
     POLYMETIS_IMPORTED = True
 except ImportError:
-    print("[research] Skipping polymetis, torch, and scipy. One of the packages was not found")
+    print("[research] Skipping polymetis and torch. One of the packages was not found")
     POLYMETIS_IMPORTED = False
 
 
@@ -79,7 +79,7 @@ class PolyMetisController(Controller):
                 "joint_vel": gym.spaces.Box(
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
                 ),
-                "ee_pos": gym.spaces.Box(low=self.EE_LOW[:3], high=self.EE_HIGH[:3], dtype=np.float32),
+                "ee_pos": gym.spaces.Box(low=self.CARTESIAN_EULER_LOW[:3], high=self.CARTESIAN_EULER_HIGH[:3], dtype=np.float32),
                 "ee_quat": gym.spaces.Box(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
                 "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
             }
