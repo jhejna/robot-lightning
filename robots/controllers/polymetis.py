@@ -105,11 +105,12 @@ class PolyMetisController(Controller):
         low = np.concatenate((low, [0]))
         high = np.concatenate((high, [1]))
 
-        return low, high
+        return np.stack((low, high))
 
     @cached_property
     def action_space(self):
-        low, high = self.get_action_bounds(self.controller_type)
+        bounds = self.get_action_bounds(self.controller_type)
+        low, high = bounds[0], bounds[1]
         return gym.spaces.Box(low=low, high=high, dtype=np.float32)
 
     @property
@@ -149,7 +150,7 @@ class PolyMetisController(Controller):
         """
         Updates the robot controller with the action
         """
-        
+
         if controller_type == None:
             controller_type = self.controller_type
         
@@ -176,11 +177,14 @@ class PolyMetisController(Controller):
                 joint_pos_desired = self.state["joint_pos"] + joint_delta_desired
                 joint_pos_desired = np.clip(joint_pos_desired, self.JOINT_LOW, self.JOINT_HIGH)
             
+            joint_pos_desired = torch.from_numpy(joint_pos_desired)
+
             # Compute ee_pos_desired, ee_rot_desired, ee_pos_delta_desired, and ee_rot_delta_desired
-            ee_pos_desired, ee_quat_desired = self.robot.robot_model.forward_kinematics(torch.from_numpy(joint_pos_desired)).numpy()
+            ee_pos_desired, ee_quat_desired = self.robot.robot_model.forward_kinematics(joint_pos_desired)
+            ee_pos_desired, ee_quat_desired = ee_pos_desired.numpy(), ee_quat_desired.numpy()
             ee_pos_delta_desired = ee_pos_desired - self.state['ee_pos']
             ee_rot_desired = Rotation.from_quat(ee_quat_desired)
-            ee_rot_delta_desired = ee_rot_desired / Rotation.from_quat(self.state['ee_quat']) # TODO: Check I am dividing in the right order.
+            ee_rot_delta_desired = Rotation.from_quat(self.state['ee_quat']).inv() * ee_rot_desired  # TODO: Check I am dividing in the right order.
 
             success = True
 
@@ -190,11 +194,11 @@ class PolyMetisController(Controller):
             if controller_type == "CARTESIAN_EULER_IMPEDANCE":
                 ee_pos_desired, ee_rot_desired = robot_action[:3], Rotation.from_euler('xyz', robot_action[3:])
                 ee_pos_delta_desired = ee_pos_desired - self.state['ee_pos']
-                ee_rot_delta_desired = ee_rot_desired / Rotation.from_quat(self.state['ee_quat'])
+                ee_rot_delta_desired = Rotation.from_quat(self.state['ee_quat']).inv() * ee_rot_desired
             elif controller_type == "CARTESIAN_ROT6D_IMPEDANCE":
                 ee_pos_desired, ee_rot_desired = robot_action[:3], Rotation.from_rot6d(robot_action[3:])
                 ee_pos_delta_desired = ee_pos_desired - self.state['ee_pos']
-                ee_rot_delta_desired = ee_rot_desired / Rotation.from_quat(self.state['ee_quat'])
+                ee_rot_delta_desired = Rotation.from_quat(self.state['ee_quat']).inv() * ee_rot_desired
             elif controller_type == "CARTESIAN_EULER_DELTA":
                 ee_pos_delta_desired, ee_rot_delta_desired = robot_action[:3], Rotation.from_euler('xyz', robot_action[3:])
                 ee_pos_desired = self.state["ee_pos"] + ee_pos_delta_desired
@@ -205,7 +209,7 @@ class PolyMetisController(Controller):
             joint_pos_desired, success = self.robot.solve_inverse_kinematics(
                 torch.from_numpy(ee_pos_desired), torch.from_numpy(ee_rot_desired.as_quat()), self.robot.get_joint_positions()
             )
-            joint_delta_desired = joint_pos_desired - self.state['joint_pos']
+            joint_delta_desired = joint_pos_desired.numpy() - self.state['joint_pos']
             
             success = success.item()
 
@@ -220,7 +224,7 @@ class PolyMetisController(Controller):
             "CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_euler('xyz'), gripper_pos_desired]),
             "CARTESIAN_ROT6D_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_rot6d(), gripper_pos_desired]),
             "CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_desired, ee_rot_delta_desired.as_euler('xyz'), gripper_pos_desired]),
-            "success": success,
+            "executed": success,
         }
 
         # Update the robot
@@ -254,7 +258,7 @@ class PolyMetisController(Controller):
         self.update_gripper(0, blocking=True)  # Close the gripper
         print("resetting")
         self.robot.go_home()
-        time.sleep(3.0)
+        time.sleep(1.0)
 
         if randomize:
             # Get the current position and then add some noise to it
@@ -268,4 +272,7 @@ class PolyMetisController(Controller):
         self.robot.start_joint_impedance()
 
     def evaluate_command(self, fn_name, *args, **kwargs):
-        return getattr(self.robot, fn_name)(*args, **kwargs)
+        if hasattr(self, fn_name):
+            return getattr(self, fn_name)(*args, **kwargs)
+        elif fn_name.startswith("robot."):
+            return getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
