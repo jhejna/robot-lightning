@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Union
 import gym
 import numpy as np
 import zerorpc
+import torch
 
 import robots
 
@@ -10,6 +11,8 @@ from .controller import Controller, DummyController
 
 
 def parse_from_lists(item: Union[Dict, List]):
+    if item is None:
+        return None
     if isinstance(item, list):
         return np.array(item, dtype=np.float32)
     elif isinstance(item, tuple):
@@ -18,26 +21,28 @@ def parse_from_lists(item: Union[Dict, List]):
         return gym.spaces.Box(low=parse_from_lists(item["low"]), high=parse_from_lists(item["high"]), dtype=np.float32)
     elif isinstance(item, dict):
         return {k: parse_from_lists(v) for k, v in item.items()}
-    elif isinstance(item, bool):
-        return item
-    elif isinstance(item, str):
+    elif isinstance(item, (bool, str, int, float)):
         return item
     else:
         raise ValueError(f"Invalid item of type {type(item)} passed to parse_from_lists")
 
 
 def parse_to_lists(item):
+    if item is None:
+        return None
+    if isinstance(item, list):
+        return [parse_to_lists(v) for v in item]
     if isinstance(item, (dict, gym.spaces.Dict)):
         return {k: parse_to_lists(v) for k, v in item.items()}
     elif isinstance(item, tuple):
         return tuple(parse_from_lists(v) for v in item)
+    elif isinstance(item, torch.Tensor):
+        return item.numpy().tolist()
     elif isinstance(item, np.ndarray):
         return item.tolist()
     elif isinstance(item, gym.spaces.Box):
         return dict(low=item.low.tolist(), high=item.high.tolist())
-    elif isinstance(item, bool):
-        return item
-    elif isinstance(item, str):
+    elif isinstance(item, (bool, str, int, float)):
         return item
     else:
         raise ValueError(f"Invalid item of type {type(item)} passed to parse_to_lists")
@@ -84,7 +89,7 @@ class ZeroRPCClient(Controller):
         """
         Updates the robot controller with the action
         """
-        return parse_from_lists(self.client.update(parse_to_lists(action), controller_type=controller_type))
+        return parse_from_lists(self.client.update(parse_to_lists(action), controller_type))
 
     def get_state(self):
         """
@@ -100,10 +105,10 @@ class ZeroRPCClient(Controller):
         """
         self.client.reset(randomize=randomize)
     
-    def send_command(self, fn_name, *args, **kwargs):
-        args = (parse_to_lists(arg) for arg in args)
+    def eval(self, fn_name, *args, **kwargs):
+        args = tuple(parse_to_lists(arg) for arg in args)
         kwargs = {k: parse_to_lists(v) for k, v in kwargs.items()}
-        return parse_from_lists(self.client.send_command(fn_name, *args, **kwargs))
+        return parse_from_lists(self.client.eval(fn_name, kwargs, *args))
 
 
 class ZeroRPCServer(Controller):
@@ -144,7 +149,7 @@ class ZeroRPCServer(Controller):
             randomize = self.randomize
         self.controller.reset(randomize=randomize)
 
-    def send_command(self, fn_name, *args, **kwargs):
+    def eval(self, fn_name, kwargs, *args):
         args = parse_from_lists(args)
         kwargs = parse_from_lists(kwargs)
-        return parse_to_lists(self.controller.evaluate_command(fn_name, *args, **kwargs))
+        return parse_to_lists(self.controller.eval(fn_name, *args, **kwargs))

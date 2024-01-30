@@ -5,6 +5,7 @@ import gym
 import time
 import numpy as np
 from typing import List, Union
+from copy import copy
 
 from .controller import Controller
 from scipy.spatial.transform import Rotation as ScipyRotation
@@ -43,22 +44,52 @@ class Rotation(ScipyRotation):
 class PolyMetisController(Controller):
     # Define the bounds for the Franka Robot
 
-    CARTESIAN_EULER_LOW = np.array([0.1, -0.4, -0.05, -np.pi, -np.pi, -np.pi], dtype=np.float32)
-    CARTESIAN_EULER_HIGH = np.array([1.0, 0.4, 1.0, np.pi, np.pi, np.pi], dtype=np.float32)
+    # Note: the xyz coordinates in the cartesian bounds are overwritten
+    # by the workspace provided to the environment.
+    CARTESIAN_EULER_LOW = np.array([0, 0, 0, -np.pi, -np.pi, -np.pi], dtype=np.float32)
+    CARTESIAN_EULER_HIGH = np.array([0, 0, 0, np.pi, np.pi, np.pi], dtype=np.float32)
 
-    CARTESIAN_ROT6D_LOW = np.array([0.1, -0.4, -0.05, -1, -1, -1, -1, -1, -1], dtype=np.float32)
-    CARTESIAN_ROT6D_HIGH = np.array([1.0, 0.4, 1.0, 1, 1, 1, 1, 1, 1], dtype=np.float32)
+    CARTESIAN_ROT6D_LOW = np.array([0, 0, 0, -1, -1, -1, -1, -1, -1], dtype=np.float32)
+    CARTESIAN_ROT6D_HIGH = np.array([0, 0, 0, 1, 1, 1, 1, 1, 1], dtype=np.float32)
+
+    # Note: all coordinates are overwritten by max cartesian delta
+    # and max orientation delta bounds given to the environment.
+    CARTESIAN_EULER_DELTA_LOW = np.zeros(6)
+    CARTESIAN_EULER_DELTA_HIGH = np.zeros(6)
 
     JOINT_LOW = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, 0.5445, -3.0159], dtype=np.float32)
     JOINT_HIGH = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159], dtype=np.float32)
 
+    JOINT_DELTA_LOW = 1 / 4.1 * np.array([-2, -1, -1.5, -1.25, -3, -1.5, -3])
+    JOINT_DELTA_HIGH = 1 / 4.1 * np.array([2, 1, 1.5, 1.25, 3, 1.5, 3])
+
     HOME = np.array([0.0, -np.pi / 4.0, 0.0, -3.0 * np.pi / 4.0, 0.0, np.pi / 2.0, 0], dtype=np.float32)
 
     def __init__(
-        self, ip_address: str = "localhost", controller_type: str = "CARTESIAN_EULER_DELTA", max_delta: float = 0.05
+        self,
+        ip_address: str = "localhost",
+        controller_type: str = "CARTESIAN_EULER_DELTA",
+        max_cartesian_delta: float = 0.05,
+        max_orientation_delta: float = 0.2,
+        workspace: List[List[float]] = [[0.1, -0.4, -0.05], [1.0, 0.4, 1.0]],
     ):
         self.ip_address = ip_address
         self.controller_type = controller_type
+        self.workspace = workspace
+        # These are coarse coordinate-wise bounds on xyz delta and
+        # orientation delta and are not recommended to be changed.
+        self.max_cartesian_delta = max_cartesian_delta
+        self.max_orientation_delta = max_orientation_delta
+
+        self.CARTESIAN_EULER_LOW[:3] = workspace[0]
+        self.CARTESIAN_EULER_HIGH[:3] = workspace[1]
+        self.CARTESIAN_ROT6D_LOW[:3] = workspace[0]
+        self.CARTESIAN_ROT6D_HIGH[:3] = workspace[1]
+        self.CARTESIAN_EULER_DELTA_LOW[:3] = -self.max_cartesian_delta
+        self.CARTESIAN_EULER_DELTA_LOW[3:] = -self.max_orientation_delta
+        self.CARTESIAN_EULER_DELTA_HIGH[:3] = self.max_cartesian_delta
+        self.CARTESIAN_EULER_DELTA_HIGH[3:] = self.max_orientation_delta
+
         assert controller_type in {
             "JOINT_IMPEDANCE",
             "JOINT_DELTA",
@@ -66,10 +97,14 @@ class PolyMetisController(Controller):
             "CARTESIAN_EULER_DELTA",
             "CARTESIAN_ROT6D_IMPEDANCE"
         }
-        self.max_delta = max_delta
 
         self._robot = None
         self._gripper = None
+
+        self._last_joint_pos_desired = None
+        self._last_gripper_pos_desired = None
+        self._last_state = None
+        self.state = None
 
     @cached_property
     def observation_space(self):
@@ -80,7 +115,7 @@ class PolyMetisController(Controller):
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
                 ),
                 "ee_pos": gym.spaces.Box(low=self.CARTESIAN_EULER_LOW[:3], high=self.CARTESIAN_EULER_HIGH[:3], dtype=np.float32),
-                "ee_quat": gym.spaces.Box(low=np.zeros(4), high=np.ones(4), dtype=np.float32),
+                "ee_quat": gym.spaces.Box(low=-np.ones(4), high=np.ones(4), dtype=np.float32),
                 "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
             }
         )
@@ -89,16 +124,13 @@ class PolyMetisController(Controller):
         if controller_type == "JOINT_IMPEDANCE":
             low, high = self.JOINT_LOW, self.JOINT_HIGH
         elif controller_type == "JOINT_DELTA":
-            high = self.max_delta * np.ones(self.JOINT_LOW.shape[0], dtype=np.float32)
-            low = -high
+            low, high = self.JOINT_DELTA_LOW, self.JOINT_DELTA_HIGH
         elif controller_type == "CARTESIAN_EULER_IMPEDANCE":
             low, high = self.CARTESIAN_EULER_LOW, self.CARTESIAN_EULER_HIGH
         elif controller_type == "CARTESIAN_ROT6D_IMPEDANCE":
             low, high = self.CARTESIAN_ROT6D_LOW, self.CARTESIAN_ROT6D_HIGH
         elif controller_type == "CARTESIAN_EULER_DELTA":
-            high = self.max_delta * np.ones(6, dtype=np.float32)
-            high[3:] = 4 * self.max_delta
-            low = -high
+            low, high = self.CARTESIAN_EULER_DELTA_LOW, self.CARTESIAN_EULER_DELTA_HIGH
         else:
             raise ValueError("Invalid Controller type provided")
         # Add the gripper action space
@@ -140,7 +172,6 @@ class PolyMetisController(Controller):
 
     def update_gripper(self, gripper_action, blocking=False):
         # We always run the gripper in absolute position
-        gripper_action = max(min(gripper_action, 1), 0)
         self.gripper.goto(
             width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.01, blocking=blocking
         )
@@ -151,13 +182,19 @@ class PolyMetisController(Controller):
         Updates the robot controller with the action
         """
 
+        return_message = []
+
         if controller_type == None:
             controller_type = self.controller_type
         
-        # Clip based on the controller_type specified in the call,
-        # otherwise use the default controller_type
-        low, high = self.get_action_bounds(controller_type)
-        action = np.clip(action, low, high)
+        # Special case: If we are in Cartesian-Euler-Delta mode,
+        # clip the action coordinate-wise
+        if controller_type in ["CARTESIAN_EULER_DELTA"]:
+            low, high = self.get_action_bounds(controller_type)
+            clipped_action = np.clip(action, low, high)
+            if not np.allclose(action, clipped_action):
+                return_message.append("cartesian_euler_delta_clipped")
+            action = clipped_action
 
         robot_action, gripper_action = action[:-1], action[-1]
 
@@ -175,7 +212,6 @@ class PolyMetisController(Controller):
             elif controller_type == "JOINT_DELTA":
                 joint_delta_desired = robot_action
                 joint_pos_desired = self.state["joint_pos"] + joint_delta_desired
-                joint_pos_desired = np.clip(joint_pos_desired, self.JOINT_LOW, self.JOINT_HIGH)
             
             joint_pos_desired = torch.from_numpy(joint_pos_desired)
 
@@ -184,9 +220,9 @@ class PolyMetisController(Controller):
             ee_pos_desired, ee_quat_desired = ee_pos_desired.numpy(), ee_quat_desired.numpy()
             ee_pos_delta_desired = ee_pos_desired - self.state['ee_pos']
             ee_rot_desired = Rotation.from_quat(ee_quat_desired)
-            ee_rot_delta_desired = Rotation.from_quat(self.state['ee_quat']).inv() * ee_rot_desired  # TODO: Check I am dividing in the right order.
+            ee_rot_delta_desired = Rotation.from_quat(self.state['ee_quat']).inv() * ee_rot_desired
 
-            success = True
+            ik_success = True
 
         elif controller_type in ["CARTESIAN_EULER_IMPEDANCE", "CARTESIAN_ROT6D_IMPEDANCE", "CARTESIAN_EULER_DELTA"]:
 
@@ -202,36 +238,103 @@ class PolyMetisController(Controller):
             elif controller_type == "CARTESIAN_EULER_DELTA":
                 ee_pos_delta_desired, ee_rot_delta_desired = robot_action[:3], Rotation.from_euler('xyz', robot_action[3:])
                 ee_pos_desired = self.state["ee_pos"] + ee_pos_delta_desired
-                ee_pos_desired = np.clip(ee_pos_desired, self.CARTESIAN_EULER_LOW[:3], self.CARTESIAN_EULER_HIGH[:3])
                 ee_rot_desired = Rotation.from_quat(self.state["ee_quat"]) * ee_rot_delta_desired
             
             # Compute joint_pos_desired and joint_delta_desired
-            joint_pos_desired, success = self.robot.solve_inverse_kinematics(
-                torch.from_numpy(ee_pos_desired), torch.from_numpy(ee_rot_desired.as_quat()), self.robot.get_joint_positions()
+            joint_pos_desired, ik_success = self.robot.solve_inverse_kinematics(
+                torch.from_numpy(ee_pos_desired).double(), torch.from_numpy(ee_rot_desired.as_quat()).double(), self.robot.get_joint_positions()
             )
             joint_delta_desired = joint_pos_desired.numpy() - self.state['joint_pos']
             
-            success = success.item()
+            ik_success = ik_success.item()
+        
+        # Gripper action clipping
+        gripper_pos_desired = np.clip(gripper_action, 0, 1).reshape([1,])
+        if not gripper_pos_desired.item() == gripper_action:
+            return_message.append("gripper_action_clipped")
 
-        # Update the gripper. Note that the gripper action is always an absolute desired position.
-        gripper_pos_desired = self.update_gripper(gripper_action, blocking=False).reshape([1])
+        # Workspace clipping
+        ee_pos_euler_desired = np.concatenate([ee_pos_desired, ee_rot_desired.as_euler('xyz')])
+        clipped_ee_pos_euler_desired = np.clip(ee_pos_euler_desired, self.CARTESIAN_EULER_LOW, self.CARTESIAN_EULER_HIGH)
+        if not np.allclose(ee_pos_euler_desired, clipped_ee_pos_euler_desired):
+            return_message.append("workspace_constraints_violated")
+            desired_actions = self.update(np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), controller_type="CARTESIAN_EULER_IMPEDANCE")
+            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            return desired_actions
+
+        # IK failure        
+        if not ik_success:
+            return_message.append("ik_failed")
+            desired_actions = self.update(self._last_joint_pos_desired, controller_type="JOINT_IMPEDANCE")
+            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            return desired_actions
+
+        # Joints clipping
+        clipped_joint_pos_desired = np.clip(joint_pos_desired, self.JOINT_LOW, self.JOINT_HIGH)
+        if not np.allclose(joint_pos_desired, clipped_joint_pos_desired):
+            return_message.append("joint_limits_violated")
+            desired_actions = self.update(np.concatenate([clipped_joint_pos_desired, gripper_pos_desired]), controller_type="JOINT_IMPEDANCE")
+            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            return desired_actions
+        
+        # Joint delta clipping
+        clipped_joint_delta_desired = np.clip(joint_delta_desired, self.JOINT_DELTA_LOW, self.JOINT_DELTA_HIGH)
+        if not np.allclose(joint_delta_desired, clipped_joint_delta_desired):
+            return_message.append("joint_delta_limits_violated")
+            desired_actions = self.update(np.concatenate([clipped_joint_delta_desired, gripper_pos_desired]), controller_type="JOINT_DELTA")
+            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            return desired_actions
 
         # We return the equivalent actions that could have been taken with different
         # controller_types.
-        equivalent_actions = {
-            "JOINT_IMPEDANCE": np.concatenate([joint_pos_desired, gripper_pos_desired]),
-            "JOINT_DELTA": np.concatenate([joint_delta_desired, gripper_pos_desired]),
-            "CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_euler('xyz'), gripper_pos_desired]),
-            "CARTESIAN_ROT6D_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_rot6d(), gripper_pos_desired]),
-            "CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_desired, ee_rot_delta_desired.as_euler('xyz'), gripper_pos_desired]),
-            "executed": success,
+        desired_actions = {
+            "action_desired_JOINT_IMPEDANCE": np.concatenate([joint_pos_desired, gripper_pos_desired]),
+            "action_desired_JOINT_DELTA": np.concatenate([joint_delta_desired, gripper_pos_desired]),
+            "action_desired_CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_euler('xyz'), gripper_pos_desired]),
+            "action_desired_CARTESIAN_ROT6D_IMPEDANCE": np.concatenate([ee_pos_desired, ee_rot_desired.as_rot6d(), gripper_pos_desired]),
+            "action_desired_CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_desired, ee_rot_delta_desired.as_euler('xyz'), gripper_pos_desired]),
+            "action_message": " ".join(return_message),
         }
 
-        # Update the robot
-        if success:
-            self.robot.update_desired_joint_positions(joint_pos_desired)
+        # Update the gripper. Note that the gripper action is always represented as an absolute desired position.
+        self._last_gripper_pos_desired = gripper_pos_desired
+        self.update_gripper(gripper_pos_desired.item(), blocking=False)
 
-        return equivalent_actions
+        # Update the robot
+        self._last_joint_pos_desired = joint_pos_desired
+        self.robot.update_desired_joint_positions(joint_pos_desired)
+
+        if len(return_message) > 0:
+            print(return_message)
+
+        return desired_actions
+    
+    def get_achieved_actions(self):
+        """
+        Returns a dictionary of *achieved* actions for each controller type
+        between the current state and the last state.
+        Note: We always use *desired* absolute position for the gripper only.
+        """
+        gripper_pos_desired = self._last_gripper_pos_desired
+        joint_pos_achieved = self.state['joint_pos']
+        joint_delta_achieved = joint_pos_achieved - self._last_state['joint_pos']
+        ee_pos_achieved = self.state['ee_pos']
+        ee_pos_delta_achieved = ee_pos_achieved - self._last_state['ee_pos']
+        ee_rot_achieved = Rotation.from_quat(self.state['ee_quat'])
+        ee_rot_delta_achieved = Rotation.from_quat(self._last_state['ee_quat']).inv() * ee_rot_achieved
+        ee_euler_achieved = ee_rot_achieved.as_euler('xyz')
+        ee_euler_delta_achieved = ee_rot_delta_achieved.as_euler('xyz')
+        ee_rot6d_achieved = ee_rot_achieved.as_rot6d()
+        
+        achieved_actions = {
+            "action_achieved_JOINT_IMPEDANCE": np.concatenate([joint_pos_achieved, gripper_pos_desired]),
+            "action_achieved_JOINT_DELTA": np.concatenate([joint_delta_achieved, gripper_pos_desired]),
+            "action_achieved_CARTESIAN_EULER_IMPEDANCE": np.concatenate([ee_pos_achieved, ee_euler_achieved, gripper_pos_desired]),
+            "action_achieved_CARTESIAN_ROT6D_IMPEDANCE": np.concatenate([ee_pos_achieved, ee_rot6d_achieved, gripper_pos_desired]),
+            "action_achieved_CARTESIAN_EULER_DELTA": np.concatenate([ee_pos_delta_achieved, ee_euler_delta_achieved, gripper_pos_desired]),
+        }
+
+        return achieved_actions
 
     def get_state(self):
         """
@@ -243,6 +346,7 @@ class PolyMetisController(Controller):
         gripper_state = self.gripper.get_state()
         gripper_pos = 1 - (gripper_state.width / self._max_gripper_width)
         self._updated = False
+        self._last_state = copy(self.state)
         self.state = dict(
             joint_pos=np.array(robot_state.joint_positions, dtype=np.float32),
             joint_vel=np.array(robot_state.joint_velocities, dtype=np.float32),
@@ -251,7 +355,18 @@ class PolyMetisController(Controller):
             gripper_pos=np.asarray([gripper_pos], dtype=np.float32),
         )
         return self.state
+    
+    def calculate_fingertip_pos(self, ee_pos, ee_quat):
+        home_fingertip_offset = np.array([0, 0, -0.17])
+        ee_euler = Rotation.from_quat(ee_quat).as_euler('xyz') - np.array([-np.pi, 0, 0])
+        fingertip_offset = Rotation.from_euler('xyz', ee_euler).as_matrix() @ home_fingertip_offset
+        fingertip_pos = ee_pos + fingertip_offset
+        return fingertip_pos    
 
+    @property
+    def fingertip_pos(self):
+        return self.calculate_fingertip_pos(self.state['ee_pos'], self.state['ee_quat'])
+        
     def reset(self, randomize: bool = True):
         if self.robot.is_running_policy():
             self.robot.terminate_current_policy()
@@ -271,8 +386,12 @@ class PolyMetisController(Controller):
 
         self.robot.start_joint_impedance()
 
-    def evaluate_command(self, fn_name, *args, **kwargs):
+    def eval(self, fn_name, *args, **kwargs):
         if hasattr(self, fn_name):
-            return getattr(self, fn_name)(*args, **kwargs)
+            fn = getattr(self, fn_name)
+            if callable(fn):
+                return fn(*args, **kwargs)
+            else:
+                return fn
         elif fn_name.startswith("robot."):
             return getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
