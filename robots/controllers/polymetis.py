@@ -259,14 +259,14 @@ class PolyMetisController(Controller):
         if not np.allclose(ee_pos_euler_desired, clipped_ee_pos_euler_desired):
             return_message.append("workspace_constraints_violated")
             desired_actions = self.update(np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), controller_type="CARTESIAN_EULER_IMPEDANCE")
-            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            desired_actions['action_message'] = " ".join([desired_actions['action_message'], *return_message])
             return desired_actions
 
         # IK failure        
         if not ik_success:
             return_message.append("ik_failed")
             desired_actions = self.update(self._last_joint_pos_desired, controller_type="JOINT_IMPEDANCE")
-            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            desired_actions['action_message'] = " ".join([desired_actions['action_message'], *return_message])
             return desired_actions
 
         # Joints clipping
@@ -274,7 +274,7 @@ class PolyMetisController(Controller):
         if not np.allclose(joint_pos_desired, clipped_joint_pos_desired):
             return_message.append("joint_limits_violated")
             desired_actions = self.update(np.concatenate([clipped_joint_pos_desired, gripper_pos_desired]), controller_type="JOINT_IMPEDANCE")
-            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            desired_actions['action_message'] = " ".join([desired_actions['action_message'], *return_message])
             return desired_actions
         
         # Joint delta clipping
@@ -282,7 +282,7 @@ class PolyMetisController(Controller):
         if not np.allclose(joint_delta_desired, clipped_joint_delta_desired):
             return_message.append("joint_delta_limits_violated")
             desired_actions = self.update(np.concatenate([clipped_joint_delta_desired, gripper_pos_desired]), controller_type="JOINT_DELTA")
-            desired_actions['message'] = " ".join([desired_actions['message'], *return_message])
+            desired_actions['action_message'] = " ".join([desired_actions['action_message'], *return_message])
             return desired_actions
 
         # We return the equivalent actions that could have been taken with different
