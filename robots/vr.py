@@ -235,11 +235,11 @@ class VRController(object):
         pos_action = target_pos_offset - hand_pos_offset
 
         target_quat_offset = quat_diff(self.vr_state["quat"], self.vr_origin["quat"])
-        target_quat_offset = axisangle2quat(quat2axisangle(target_quat_offset) * self.rot_action_gain)
+        target_quat_offset = axisangle2quat(quat2axisangle(target_quat_offset))
         desired_quat = quat_multiply(target_quat_offset, self.robot_origin["quat"])
 
         scale_pos_action = pos_action * self.pos_action_gain
-        delta_euler = orientation_error(quat2mat(desired_quat), quat2mat(ee_quat))
+        delta_euler = orientation_error(quat2mat(desired_quat), quat2mat(ee_quat)) * self.rot_action_gain
         command = np.concatenate([scale_pos_action, delta_euler])
 
         gripper_action = (
