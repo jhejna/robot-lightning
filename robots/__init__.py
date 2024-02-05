@@ -1,5 +1,5 @@
 from . import cameras
-from .robot import RobotEnv
+from .robot import RobotEnv, precise_wait
 
 try:
     from .controllers.remote import ZeroRPCClient, ZeroRPCServer

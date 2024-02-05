@@ -120,6 +120,7 @@ class RobotEnv(gym.Env):
 
         self._steps = 0
 
+        self._time = None
         obs = self._get_obs()
         if NEW_GYM_API:
             return obs, dict()
