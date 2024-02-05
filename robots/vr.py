@@ -243,7 +243,7 @@ class VRController(object):
         command = np.concatenate([scale_pos_action, delta_euler])
 
         gripper_action = (
-            2 * np.array([(self.vr_state["gripper"]) * self.gripper_action_gain]) - self.gripper_action_gain
+            np.array([(self.vr_state["gripper"]) * self.gripper_action_gain])
         )
         command = np.concatenate((command, gripper_action))
 
