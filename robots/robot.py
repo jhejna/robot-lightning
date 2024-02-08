@@ -101,7 +101,7 @@ class RobotEnv(gym.Env):
         precise_wait(end_time)
         self._time = time.time()
         obs = self._get_obs()
-        achieved_action = self.controller.eval("get_achieved_actions")
+        achieved_action = self.controller.get_action()
 
         self._steps += 1
         terminated = self.horizon is not None and self._steps == self.horizon
