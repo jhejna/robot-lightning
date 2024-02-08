@@ -4,14 +4,13 @@ controller_kwargs:
   ip_address: "172.16.0.130"
   controller_class: PolyMetisController
   controller_kwargs:
-    controller_type: CARTESIAN_DELTA
     ip_address: localhost
+controller_type: CARTESIAN_EULER_DELTA
 control_hz: 10
 random_init: True
 img_width: 256
 img_height: 256
 horizon: 250
-normalize_actions: True
 channels_first: False
 cameras:
   agent:
