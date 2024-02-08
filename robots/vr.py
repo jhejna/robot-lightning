@@ -242,9 +242,7 @@ class VRController(object):
         delta_euler = orientation_error(quat2mat(desired_quat), quat2mat(ee_quat)) * self.rot_action_gain
         command = np.concatenate([scale_pos_action, delta_euler])
 
-        gripper_action = (
-            np.array([(self.vr_state["gripper"]) * self.gripper_action_gain])
-        )
+        gripper_action = np.array([(self.vr_state["gripper"]) * self.gripper_action_gain])
         command = np.concatenate((command, gripper_action))
 
         return command

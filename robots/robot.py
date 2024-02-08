@@ -30,6 +30,7 @@ class RobotEnv(gym.Env):
         self,
         controller_class: Union[str, Type[Controller]] = DummyController,
         controller_kwargs: Optional[Dict] = None,
+        controller_type: str = "CARTESIAN_EULER_DELTA",
         random_init: bool = True,
         control_hz: float = 10.0,
         img_width: int = 128,
@@ -39,12 +40,14 @@ class RobotEnv(gym.Env):
         channels_first: bool = True,
         horizon: Optional[int] = 500,
     ):
-        self.random_init = random_init
         controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class
         self.controller = controller_class(**({} if controller_kwargs is None else controller_kwargs))
-        # Add the action space limits.
-        self.action_space = self.controller.action_space
+        assert controller_type in self.controller.action_spaces, "controller_type not supported by the controller."
+        self.default_controller_type = controller_type
 
+        # Add the action space limits.
+        self.action_space = self.controller.action_spaces[self.default_controller_type]
+        # Construct the observation space
         spaces = dict(state=self.controller.observation_space)
 
         self.cameras = dict()
@@ -64,8 +67,9 @@ class RobotEnv(gym.Env):
                     )
 
         self.observation_space = gym.spaces.Dict(spaces)
+        self.random_init = random_init
         self.horizon = horizon
-        self._max_episode_steps = horizon
+        self._max_episode_steps = horizon  # Added so it looks like we have a gym time limit wrapper.
         self.control_hz = float(control_hz)
         self.channels_first = channels_first
         self._steps = 0
@@ -88,7 +92,8 @@ class RobotEnv(gym.Env):
         if self._time is None:
             self._time = time.time()
 
-        desired_actions = self.controller.update(action, controller_type=controller_type)
+        controller_type = self.default_controller_type if controller_type is None else controller_type
+        desired_action = self.controller.update(action, controller_type)
 
         # Make sure get_obs gets called at control_hz
         # (This is true assuming get_obs() takes a constant amount of time)
@@ -96,13 +101,11 @@ class RobotEnv(gym.Env):
         precise_wait(end_time)
         self._time = time.time()
         obs = self._get_obs()
-        achieved_actions = self.controller.eval("get_achieved_actions")
+        achieved_action = self.controller.eval("get_achieved_actions")
 
         self._steps += 1
         terminated = self.horizon is not None and self._steps == self.horizon
-        info = dict(discount=1 - float(terminated))
-        info.update(desired_actions)
-        info.update(achieved_actions)
+        info = dict(discount=1 - float(terminated), desired_action=desired_action, achieved_action=achieved_action)
 
         if info["action_message"] != "":
             print(f"[robots] {info['action_message']}")
@@ -119,7 +122,6 @@ class RobotEnv(gym.Env):
             time.sleep(1.0)
 
         self._steps = 0
-
         self._time = None
         obs = self._get_obs()
         if NEW_GYM_API:

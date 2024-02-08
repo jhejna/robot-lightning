@@ -3,7 +3,6 @@ from typing import Dict, List, Optional, Union
 import gym
 import numpy as np
 import zerorpc
-import torch
 
 import robots
 
@@ -13,7 +12,7 @@ from .controller import Controller, DummyController
 def parse_from_lists(item: Union[Dict, List]):
     if item is None:
         return None
-    if isinstance(item, list):
+    elif isinstance(item, list):
         return np.array(item, dtype=np.float32)
     elif isinstance(item, tuple):
         return tuple(parse_from_lists(v) for v in item)
@@ -30,14 +29,12 @@ def parse_from_lists(item: Union[Dict, List]):
 def parse_to_lists(item):
     if item is None:
         return None
-    if isinstance(item, list):
+    elif isinstance(item, list):
         return [parse_to_lists(v) for v in item]
     if isinstance(item, (dict, gym.spaces.Dict)):
         return {k: parse_to_lists(v) for k, v in item.items()}
     elif isinstance(item, tuple):
         return tuple(parse_from_lists(v) for v in item)
-    elif isinstance(item, torch.Tensor):
-        return item.numpy().tolist()
     elif isinstance(item, np.ndarray):
         return item.tolist()
     elif isinstance(item, gym.spaces.Box):
@@ -82,8 +79,11 @@ class ZeroRPCClient(Controller):
         return self.controller.observation_space
 
     @property
-    def action_space(self):
-        return self.controller.action_space
+    def action_spaces(self):
+        """
+        Returns the gym action space corresponding to controller_type
+        """
+        return self.controller.action_spaces
 
     def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> Dict:
         """
@@ -99,12 +99,19 @@ class ZeroRPCClient(Controller):
         """
         return parse_from_lists(self.client.get_state())
 
+    def get_action(self):
+        """
+        Returns the action actually executed by the robot since the last call to update,
+        represented as a dictionary where the keys are all supported controller types.
+        """
+        return parse_from_lists(self.client.get_action())
+
     def reset(self, randomize=False):
         """
         Reset the robot to HOME, randomize if asked for.
         """
         self.client.reset(randomize=randomize)
-    
+
     def eval(self, fn_name, *args, **kwargs):
         args = tuple(parse_to_lists(arg) for arg in args)
         kwargs = {k: parse_to_lists(v) for k, v in kwargs.items()}
@@ -123,8 +130,11 @@ class ZeroRPCServer(Controller):
         return self.controller.observation_space
 
     @property
-    def action_space(self):
-        return self.controller.action_space
+    def action_spaces(self):
+        """
+        Returns the gym action space corresponding to controller_type
+        """
+        return self.controller.action_spaces
 
     def update(self, action: List[float], controller_type: Optional[str] = None) -> Dict:
         """
@@ -140,6 +150,13 @@ class ZeroRPCServer(Controller):
         Also updates the controllers internal state for delta actions.
         """
         return parse_to_lists(self.controller.get_state())
+
+    def get_action(self):
+        """
+        Returns the action actually executed by the robot since the last call to update,
+        represented as a dictionary where the keys are all supported controller types.
+        """
+        return parse_to_lists(self.controller.get_action())
 
     def reset(self, randomize: Optional[bool] = None):
         """

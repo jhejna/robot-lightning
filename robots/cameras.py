@@ -18,6 +18,10 @@ try:
 except ImportError:
     IMPORTED_PYREALSENSE = False
 
+"""
+NOTE: All cameras are set to record at 640x480 and then resize to the desired height and width.
+"""
+
 
 class Camera(object):
     def __init__(self, width: int, height: int, depth: bool = False):
@@ -50,8 +54,8 @@ class OpenCVCamera(Camera):
         if self._cap is None:
             self._cap = cv2.VideoCapture(self.id)
             # Values other than default 640x480 have not been tested yet
-            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.height)
-            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.width)
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         return self._cap
 
     def get_frames(self):
@@ -86,8 +90,8 @@ class ThreadedOpenCVCamera(Camera):
         # We need to parse the CV Camera ID
         self._cap = cv2.VideoCapture(self.id)
         # Values other than default 640x480 have not been tested yet
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.height)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.width)
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         while self._running:
             retval, img = self._cap.read()
