@@ -1,4 +1,5 @@
 import argparse
+import copy
 import datetime
 import filecmp
 import io
@@ -160,6 +161,9 @@ if __name__ == "__main__":
             args.config, config_save_path
         ), "Trying to add more demos to a folder with a different config."
 
+    # Always make the environment with CARTESIAN_EULER_DELTA
+    default_controller_type = config["controller_type"]
+    config["controller_type"] = "CARTESIAN_EULER_DELTA"
     env = robots.RobotEnv(**config)
     vr = robots.VRController(**vr_kwargs)
 
@@ -175,19 +179,27 @@ if __name__ == "__main__":
 
         if args.format == "lightning":
             episode = dict(
-                action=[np.zeros_like(env.action_space.sample())],
                 reward=[0.0],
                 done=[False],
                 discount=[1.0],
+                desired_action={k: [v.sample()] for k, v in env.controller.action_spaces.items()},
+                achieved_action_action={k: [v.sample()] for k, v in env.controller.action_spaces.items()},
             )
+
+            def init_action_fn(space):
+                return [space.sample()]
+
         else:
             episode = dict(
-                action=[],
                 reward=[],
                 done=[],
                 discount=[],
+                desired_action={k: [] for k in env.controller.action_spaces.keys()},
+                achieved_action_action={k: [] for k in env.controller.action_spaces.keys()},
             )
+        # Write the obs and action to episode
         episode["obs"] = nest_dict({k: [] for k in flatten_dict(env.observation_space).keys()})
+        episode["action"] = copy.deepcopy(episode["desired_action"][default_controller_type])
 
         # Reset the environment
         if NEW_GYM_API:
@@ -215,7 +227,20 @@ if __name__ == "__main__":
                     terminated = False
 
                 discount = 1.0 - float(terminated)
-                step = dict(obs=obs, action=action, reward=reward, done=done, discount=discount)
+
+                # Log all of the different aciton types, but set action to the one in the config file.
+                desired_action = info["desired_action"]
+                achieved_action = info["achieved_action"]
+                action = desired_action[default_controller_type]
+                step = dict(
+                    obs=obs,
+                    action=action,
+                    reward=reward,
+                    done=done,
+                    discount=discount,
+                    desired_action=desired_action,
+                    achieved_action=achieved_action,
+                )
                 if lang is not None:
                     step["language_instruction"] = lang
                 append(episode, step)

@@ -30,6 +30,7 @@ class RobotEnv(gym.Env):
         self,
         controller_class: Union[str, Type[Controller]] = DummyController,
         controller_kwargs: Optional[Dict] = None,
+        controller_type: str = "CARTESIAN_EULER_DELTA",
         random_init: bool = True,
         control_hz: float = 10.0,
         img_width: int = 128,
@@ -38,20 +39,15 @@ class RobotEnv(gym.Env):
         cameras: Optional[Dict] = None,
         channels_first: bool = True,
         horizon: Optional[int] = 500,
-        normalize_actions: bool = True,
     ):
-        self.random_init = random_init
         controller_class = vars(robots)[controller_class] if isinstance(controller_class, str) else controller_class
         self.controller = controller_class(**({} if controller_kwargs is None else controller_kwargs))
-        # Add the action space limits.
-        self.normalize_actions = normalize_actions
-        if self.normalize_actions:
-            self.action_space = gym.spaces.Box(
-                low=-1, high=1, shape=self.controller.action_space.shape, dtype=np.float32
-            )
-        else:
-            self.action_space = self.controller.action_space
+        assert controller_type in self.controller.action_spaces, "controller_type not supported by the controller."
+        self.default_controller_type = controller_type
 
+        # Add the action space limits.
+        self.action_space = self.controller.action_spaces[self.default_controller_type]
+        # Construct the observation space
         spaces = dict(state=self.controller.observation_space)
 
         self.cameras = dict()
@@ -67,55 +63,68 @@ class RobotEnv(gym.Env):
                 )
                 if depth and self.cameras[name].has_depth:
                     spaces[name + "_depth"] = gym.spaces.Box(
-                        low=0, high=255, shape=(img_height, img_width, 1), dtype=np.uint8
+                        low=0, high=2**16 - 1, shape=(img_height, img_width, 1), dtype=np.uint16
                     )
 
         self.observation_space = gym.spaces.Dict(spaces)
+        self.random_init = random_init
         self.horizon = horizon
-        self._max_episode_steps = horizon
+        self._max_episode_steps = horizon  # Added so it looks like we have a gym time limit wrapper.
         self.control_hz = float(control_hz)
         self.channels_first = channels_first
         self._steps = 0
 
-    def _get_obs(self):
-        obs = dict(state=self.controller.get_state())
+    def _get_frames(self):
+        obs_frames = dict()
         for name, camera in self.cameras.items():
             frames = camera.get_frames()
             if self.channels_first:
                 frames = {k: v.transpose(2, 0, 1) for k, v in frames.items()}
-            obs.update({name + "_" + k: v for k, v in frames.items()})
+            obs_frames.update({name + "_" + k: v for k, v in frames.items()})
+        return obs_frames
+
+    def _get_obs(self):
+        obs = dict(state=self.controller.get_state())
+        obs.update(self._get_frames())
         return obs
 
-    def step(self, action):
-        # Immediately update with the action. Note that we scale everything to be between -1 and 1.
-        start_time = time.time()
-        if self.normalize_actions:
-            low, high = self.controller.action_space.low, self.controller.action_space.high
-            unscaled_action = low + (0.5 * (action + 1.0) * (high - low))
-        else:
-            unscaled_action = action
+    def step(self, action, controller_type: Optional[str] = None):
+        if self._time is None:
+            self._time = time.time()
 
-        self.controller.update(unscaled_action)
+        controller_type = self.default_controller_type if controller_type is None else controller_type
+        desired_action = self.controller.update(action, controller_type)
 
-        end_time = start_time + (1 / self.control_hz)
+        # Make sure get_obs gets called at control_hz
+        # (This is true assuming get_obs() takes a constant amount of time)
+        end_time = self._time + (1 / self.control_hz)
         precise_wait(end_time)
+        self._time = time.time()
+        obs = self._get_obs()
+        achieved_action = self.controller.get_action()
 
         self._steps += 1
-
         terminated = self.horizon is not None and self._steps == self.horizon
-        info = dict(discount=1 - float(terminated))
+        info = dict(discount=1 - float(terminated), desired_action=desired_action, achieved_action=achieved_action)
+
+        if info["action_message"] != "":
+            print(f"[robots] {info['action_message']}")
 
         if NEW_GYM_API:
             # Note that this is following the Gym 0.26 API for termination.
-            return self._get_obs(), 0, False, terminated, info
+            return obs, 0, False, terminated, info
         else:
-            return self._get_obs(), 0, terminated, info
+            return obs, 0, terminated, info
 
-    def reset(self):
-        self.controller.reset(randomize=self.random_init)
-        time.sleep(1.0)
+    def reset(self, reset_controller=True):
+        if reset_controller:
+            self.controller.reset(randomize=self.random_init)
+            time.sleep(1.0)
+
         self._steps = 0
+        self._time = None
+        obs = self._get_obs()
         if NEW_GYM_API:
-            return self._get_obs(), dict()
+            return obs, dict()
         else:
-            return self._get_obs()
+            return obs
