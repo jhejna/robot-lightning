@@ -155,6 +155,7 @@ class PolyMetisController(Controller):
         # Load values that will be used globally
         messages = []
         euler_delta_action_space = self.action_spaces["CARTESIAN_EULER_DELTA"]
+        euler_impedance_action_space = self.action_spaces['CARTESIAN_EULER_IMPEDANCE']
 
         # Special case: If we are in Cartesian-Euler-Delta mode,
         # clip the action coordinate-wise
@@ -235,12 +236,12 @@ class PolyMetisController(Controller):
         # Workspace clipping
         ee_pos_euler_desired = np.concatenate([ee_pos_desired, ee_rot_desired.as_euler("xyz")])
         clipped_ee_pos_euler_desired = np.clip(
-            ee_pos_euler_desired, euler_delta_action_space.low, euler_delta_action_space.high
+            ee_pos_euler_desired, euler_impedance_action_space.low[:-1], euler_impedance_action_space.high[:-1]
         )
         if not np.allclose(ee_pos_euler_desired, clipped_ee_pos_euler_desired):
             messages.append("workspace_constraints_violated")
             desired_actions, new_message = self.update(
-                np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), "CARTESIAN_EULER_IMPEDANCE"
+                np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), controller_type="CARTESIAN_EULER_IMPEDANCE"
             )
             if new_message is not None:
                 messages.append(new_message)
