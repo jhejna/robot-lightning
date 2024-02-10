@@ -387,4 +387,7 @@ class PolyMetisController(Controller):
             else:
                 return fn
         elif fn_name.startswith("robot."):
-            return getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
+            out = getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
+            if isinstance(out, torch.Tensor) or (isinstance(out, list) and isinstance(out[0], torch.Tensor)):
+                out = np.array(out)
+            return out
