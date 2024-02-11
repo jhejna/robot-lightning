@@ -143,7 +143,7 @@ class PolyMetisController(Controller):
     def update_gripper(self, gripper_action, blocking=False):
         # We always run the gripper in absolute position
         self.gripper.goto(
-            width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.01, blocking=blocking
+            width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.1, blocking=blocking
         )
         return gripper_action
 
@@ -389,6 +389,6 @@ class PolyMetisController(Controller):
                 return fn
         elif fn_name.startswith("robot."):
             out = getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
-            if isinstance(out, torch.Tensor) or (isinstance(out, list) and isinstance(out[0], torch.Tensor)):
+            if isinstance(out, torch.Tensor) or (isinstance(out, list) and len(out) > 0 and isinstance(out[0], torch.Tensor)):
                 out = np.array(out)
             return out

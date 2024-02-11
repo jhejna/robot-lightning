@@ -12,7 +12,7 @@ from .controller import Controller, DummyController
 def parse_from_lists(item: Union[Dict, List]):
     if item is None:
         return None
-    elif isinstance(item, list) and isinstance(item[0], float):
+    elif isinstance(item, list) and len(item) > 0 and isinstance(item[0], float):
         return np.array(item, dtype=np.float32)
     elif isinstance(item, list):
         return [parse_from_lists(v) for v in item]
