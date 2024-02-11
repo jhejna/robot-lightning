@@ -25,7 +25,8 @@ def parse_from_lists(item: Union[Dict, List]):
     elif isinstance(item, (bool, str, int, float)):
         return item
     else:
-        raise ValueError(f"Invalid item of type {type(item)} passed to parse_from_lists")
+        print(f"Invalid item of type {type(item)} passed to parse_from_lists")
+        return None
 
 
 def parse_to_lists(item):
@@ -44,7 +45,8 @@ def parse_to_lists(item):
     elif isinstance(item, (bool, str, int, float)):
         return item
     else:
-        raise ValueError(f"Invalid item of type {type(item)} passed to parse_to_lists")
+        print(f"Invalid item of type {type(item)} passed to parse_to_lists")
+        return None
 
 
 class ZeroRPCClient(Controller):

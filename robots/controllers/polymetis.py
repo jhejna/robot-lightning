@@ -250,7 +250,9 @@ class PolyMetisController(Controller):
         # IK failure
         if not ik_success:
             messages.append("ik_failed")
-            desired_actions, new_message = self.update(self._last_joint_pos_desired, controller_type="JOINT_IMPEDANCE")
+            desired_actions, new_message = self.update(
+                np.concatenate([self._last_joint_pos_desired, gripper_pos_desired]), controller_type="JOINT_IMPEDANCE"
+            )
             if new_message is not None:
                 messages.append(new_message)
             return desired_actions, " ".join(messages) if len(messages) > 0 else None
@@ -299,7 +301,11 @@ class PolyMetisController(Controller):
 
         # Update the robot
         self._last_joint_pos_desired = joint_pos_desired
-        self.robot.update_desired_joint_positions(joint_pos_desired)
+        try:
+            self.robot.update_desired_joint_positions(joint_pos_desired)
+        except:
+            messages.append("restarted_controller")
+            self.robot.start_joint_impedance()
 
         return desired_actions, " ".join(messages) if len(messages) > 0 else None
 
@@ -388,6 +394,7 @@ class PolyMetisController(Controller):
             else:
                 return fn
         elif fn_name.startswith("robot."):
+            args = (torch.Tensor(a) for a in args)
             out = getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
             if isinstance(out, torch.Tensor) or (isinstance(out, list) and len(out) > 0 and isinstance(out[0], torch.Tensor)):
                 out = np.array(out)

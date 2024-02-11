@@ -1,0 +1,25 @@
+controller_class: ZeroRPCClient
+controller_kwargs:
+  ip_address: "172.16.0.1"
+  controller_class: PolyMetisController
+  controller_kwargs:
+    ip_address: localhost
+    workspace:
+      - [0.305, -0.320, 0.18]
+      - [0.720, 0.240, 0.645]
+controller_type: CARTESIAN_EULER_DELTA
+control_hz: 10
+random_init: False
+img_width: 128
+img_height: 128
+horizon: 1000
+channels_first: True
+cameras:
+  agent:
+    camera_class: RealSenseCamera
+    camera_kwargs:
+      serial_number: '832112071449'
+  wrist:
+    camera_class: RealSenseCamera
+    camera_kwargs:
+      serial_number: '838212072814'
