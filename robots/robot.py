@@ -58,12 +58,20 @@ class RobotEnv(gym.Env):
                 self.cameras[name] = vars(robots.cameras)[camera_class](
                     width=img_width, height=img_height, depth=depth, **camera_kwargs
                 )
+                if channels_first:
+                    img_shape = (3, img_height, img_width)
+                else:
+                    img_shape = (img_height, img_width, 3)
                 spaces[name + "_image"] = gym.spaces.Box(
-                    low=0, high=255, shape=(img_height, img_width, 3), dtype=np.uint8
+                    low=0, high=255, shape=img_shape, dtype=np.uint8
                 )
                 if depth and self.cameras[name].has_depth:
+                    if channels_first:
+                        depth_shape = (1, img_height, img_width)
+                    else:
+                        depth_shape = (img_height, img_width, 1)
                     spaces[name + "_depth"] = gym.spaces.Box(
-                        low=0, high=2**16 - 1, shape=(img_height, img_width, 1), dtype=np.uint16
+                        low=0, high=2**16 - 1, shape=depth_shape, dtype=np.uint16
                     )
 
         self.observation_space = gym.spaces.Dict(spaces)
