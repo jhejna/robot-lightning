@@ -93,7 +93,7 @@ class RobotEnv(gym.Env):
             self._time = time.time()
 
         controller_type = self.default_controller_type if controller_type is None else controller_type
-        desired_action = self.controller.update(action, controller_type)
+        desired_action, action_message = self.controller.update(action, controller_type)
 
         # Make sure get_obs gets called at control_hz
         # (This is true assuming get_obs() takes a constant amount of time)
@@ -105,7 +105,7 @@ class RobotEnv(gym.Env):
 
         self._steps += 1
         terminated = self.horizon is not None and self._steps == self.horizon
-        info = dict(discount=1 - float(terminated), desired_action=desired_action, achieved_action=achieved_action)
+        info = dict(discount=1 - float(terminated), desired_action=desired_action, achieved_action=achieved_action, action_message=action_message)
 
         if info["action_message"] != "":
             print(f"[robots] {info['action_message']}")

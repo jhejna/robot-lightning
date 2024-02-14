@@ -4,7 +4,6 @@ controller_kwargs:
   ip_address: "172.16.0.1"
   controller_class: PolyMetisController
   controller_kwargs:
-    controller_type: CARTESIAN_EULER_DELTA
     ip_address: localhost
 controller_type: CARTESIAN_EULER_DELTA
 control_hz: 10

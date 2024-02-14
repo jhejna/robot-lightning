@@ -58,7 +58,7 @@ class PolyMetisController(Controller):
         workspace: List[List[float]] = [[0.1, -0.4, -0.05], [1.0, 0.4, 1.0]],
     ):
         self.ip_address = ip_address
-        self.workspace = workspace
+        self.workspace = np.array(workspace)
         # These are coarse coordinate-wise bounds on xyz delta and
         # orientation delta and are not recommended to be changed.
         self.max_cartesian_delta = max_cartesian_delta
@@ -108,7 +108,7 @@ class PolyMetisController(Controller):
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
                 ),
                 "ee_pos": gym.spaces.Box(
-                    low=self.CARTESIAN_EULER_LOW[:3], high=self.CARTESIAN_EULER_HIGH[:3], dtype=np.float32
+                    low=self.workspace[0], high=self.workspace[1], dtype=np.float32
                 ),
                 "ee_quat": gym.spaces.Box(low=-np.ones(4), high=np.ones(4), dtype=np.float32),
                 "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
@@ -143,7 +143,7 @@ class PolyMetisController(Controller):
     def update_gripper(self, gripper_action, blocking=False):
         # We always run the gripper in absolute position
         self.gripper.goto(
-            width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.01, blocking=blocking
+            width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.1, blocking=blocking
         )
         return gripper_action
 
@@ -155,6 +155,7 @@ class PolyMetisController(Controller):
         # Load values that will be used globally
         messages = []
         euler_delta_action_space = self.action_spaces["CARTESIAN_EULER_DELTA"]
+        euler_impedance_action_space = self.action_spaces['CARTESIAN_EULER_IMPEDANCE']
 
         # Special case: If we are in Cartesian-Euler-Delta mode,
         # clip the action coordinate-wise
@@ -235,12 +236,12 @@ class PolyMetisController(Controller):
         # Workspace clipping
         ee_pos_euler_desired = np.concatenate([ee_pos_desired, ee_rot_desired.as_euler("xyz")])
         clipped_ee_pos_euler_desired = np.clip(
-            ee_pos_euler_desired, euler_delta_action_space.low, euler_delta_action_space.high
+            ee_pos_euler_desired, euler_impedance_action_space.low[:-1], euler_impedance_action_space.high[:-1]
         )
         if not np.allclose(ee_pos_euler_desired, clipped_ee_pos_euler_desired):
             messages.append("workspace_constraints_violated")
             desired_actions, new_message = self.update(
-                np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), "CARTESIAN_EULER_IMPEDANCE"
+                np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), controller_type="CARTESIAN_EULER_IMPEDANCE"
             )
             if new_message is not None:
                 messages.append(new_message)
@@ -387,4 +388,7 @@ class PolyMetisController(Controller):
             else:
                 return fn
         elif fn_name.startswith("robot."):
-            return getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
+            out = getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
+            if isinstance(out, torch.Tensor) or (isinstance(out, list) and len(out) > 0 and isinstance(out[0], torch.Tensor)):
+                out = np.array(out)
+            return out

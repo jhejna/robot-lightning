@@ -12,8 +12,10 @@ from .controller import Controller, DummyController
 def parse_from_lists(item: Union[Dict, List]):
     if item is None:
         return None
-    elif isinstance(item, list):
+    elif isinstance(item, list) and len(item) > 0 and isinstance(item[0], float):
         return np.array(item, dtype=np.float32)
+    elif isinstance(item, list):
+        return [parse_from_lists(v) for v in item]
     elif isinstance(item, tuple):
         return tuple(parse_from_lists(v) for v in item)
     elif isinstance(item, dict) and "low" in item and "high" in item:
@@ -31,12 +33,12 @@ def parse_to_lists(item):
         return None
     elif isinstance(item, list):
         return [parse_to_lists(v) for v in item]
-    if isinstance(item, (dict, gym.spaces.Dict)):
-        return {k: parse_to_lists(v) for k, v in item.items()}
     elif isinstance(item, tuple):
-        return tuple(parse_from_lists(v) for v in item)
+        return tuple(parse_to_lists(v) for v in item)
     elif isinstance(item, np.ndarray):
         return item.tolist()
+    elif isinstance(item, (dict, gym.spaces.Dict)):
+        return {k: parse_to_lists(v) for k, v in item.items()}
     elif isinstance(item, gym.spaces.Box):
         return dict(low=item.low.tolist(), high=item.high.tolist())
     elif isinstance(item, (bool, str, int, float)):
