@@ -89,11 +89,11 @@ class ZeroRPCClient(Controller):
         """
         return self.controller.action_spaces
 
-    def update(self, action: np.ndarray, controller_type: Optional[str] = None) -> Dict:
+    def update(self, action: np.ndarray, controller_type: Optional[str] = None, ignore_workspace_clipping: bool = False) -> Dict:
         """
         Updates the robot controller with the action
         """
-        return parse_from_lists(self.client.update(parse_to_lists(action), controller_type))
+        return parse_from_lists(self.client.update(parse_to_lists(action), controller_type, ignore_workspace_clipping))
 
     def get_state(self):
         """
@@ -140,12 +140,12 @@ class ZeroRPCServer(Controller):
         """
         return self.controller.action_spaces
 
-    def update(self, action: List[float], controller_type: Optional[str] = None) -> Dict:
+    def update(self, action: List[float], controller_type: Optional[str] = None, ignore_workspace_clipping: bool = False) -> Dict:
         """
         Updates the robot controller with the action
         """
         action = np.array(action, dtype=np.float32)
-        return parse_to_lists(self.controller.update(action, controller_type=controller_type))
+        return parse_to_lists(self.controller.update(action, controller_type=controller_type, ignore_workspace_clipping=ignore_workspace_clipping))
 
     def get_state(self):
         """
