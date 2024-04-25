@@ -3,6 +3,7 @@ from abc import abstractmethod, abstractproperty
 from typing import Dict, Optional, Union
 
 import numpy as np
+import time
 
 try:
     import cv2
@@ -47,6 +48,10 @@ class OpenCVCamera(Camera):
         super().__init__(**kwargs)
         self.id = id
         self._cap = None
+
+    @property
+    def has_depth(self):
+        return False
 
     @property
     def cap(self):
@@ -129,6 +134,15 @@ class RealSenseCamera(Camera):
         self._pipeline = None
         self.align = None
         self.depth_filters = None
+    
+    def hardware_reset(self):
+        print("[research] Attempting RealSense hardware reset")
+        ctx = rs.context()
+        devices = ctx.query_devices()
+        for dev in devices:
+            if dev.get_info(rs.camera_info.serial_number) == self.serial_number:
+                dev.hardware_reset()
+                break
 
     @property
     def has_depth(self):
@@ -144,9 +158,24 @@ class RealSenseCamera(Camera):
             config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
             if self.depth:
                 config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-                self.depth_filters = [rs.spatial_filter().process, rs.temporal_filter().process]
-            self._pipeline.start(config)
+                self.depth_filters = [rs.spatial_filter().process, rs.temporal_filter().process, rs.hole_filling_filter(2).process]
+            try:
+                profile = self._pipeline.start(config)
+            except:
+                # self.hardware_reset()
+                profile = self._pipeline.start(config)
+                
+            time.sleep(0.1)
             self.align = rs.align(rs.stream.color)
+
+            depth_sensor = profile.get_device().first_depth_sensor()
+            preset_range = depth_sensor.get_option_range(rs.option.visual_preset)
+            for i in range(int(preset_range.max)):
+                visual_preset = depth_sensor.get_option_value_description(rs.option.visual_preset, i)
+                if visual_preset == "High Density":
+                    time.sleep(0.5)
+                    depth_sensor.set_option(rs.option.visual_preset, i)
+
             # warmup cameras
             for _ in range(2):
                 self._pipeline.wait_for_frames()
@@ -182,7 +211,11 @@ class RealSenseCamera(Camera):
         return frames
 
     def close(self):
-        self.pipeline.stop()
+        if self._pipeline:
+            self._pipeline.stop()
+    
+    def __del__(self):
+        self.close()
 
 
 class ThreadedRealSenseCamera(Camera):
