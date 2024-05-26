@@ -185,7 +185,7 @@ if __name__ == "__main__":
                 done=[False],
                 discount=[1.0],
                 desired_action={k: [v.sample()] for k, v in env.controller.action_spaces.items()},
-                achieved_action_action={k: [v.sample()] for k, v in env.controller.action_spaces.items()},
+                achieved_action={k: [v.sample()] for k, v in env.controller.action_spaces.items()},
             )
 
             def init_action_fn(space):
@@ -197,7 +197,7 @@ if __name__ == "__main__":
                 done=[],
                 discount=[],
                 desired_action={k: [] for k in env.controller.action_spaces.keys()},
-                achieved_action_action={k: [] for k in env.controller.action_spaces.keys()},
+                achieved_action={k: [] for k in env.controller.action_spaces.keys()},
             )
         # Write the obs and action to episode
         episode["obs"] = nest_dict({k: [] for k in flatten_dict(env.observation_space).keys()})
