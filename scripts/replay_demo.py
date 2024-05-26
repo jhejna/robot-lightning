@@ -1,6 +1,7 @@
 """
 A simple script for replaying a demonstration
 """
+
 import argparse
 import os
 

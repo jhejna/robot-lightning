@@ -142,15 +142,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    vr_kwargs = dict(
-        pos_action_gain=3.0,
-        rot_action_gain=1.0,
-        gripper_action_gain=1.0,
-        min_magnitude=0.15,
-        robot_orientation="right",
-    )
-    vr_kwargs.update(parse_vars(args.vr_kwargs))
-
     with open(args.config, "r") as f:
         config = yaml.load(f, Loader=yaml.Loader)
 
@@ -165,6 +156,17 @@ if __name__ == "__main__":
     default_controller_type = config["controller_type"]
     config["controller_type"] = "CARTESIAN_EULER_DELTA"
     env = robots.RobotEnv(**config)
+
+    # Determine the VR Gains based on the robot action space
+    pos_gain, rot_gain = env.action_space.high[0], env.action_space.high[3]
+    vr_kwargs = dict(
+        pos_action_gain=3.0 * pos_gain,
+        rot_action_gain=1.0 * rot_gain,
+        gripper_action_gain=1.0,
+        min_magnitude=0.15 * pos_gain,
+        robot_orientation="right",
+    )
+    vr_kwargs.update(parse_vars(args.vr_kwargs))
     vr = robots.VRController(**vr_kwargs)
 
     os.makedirs(args.path, exist_ok=True)

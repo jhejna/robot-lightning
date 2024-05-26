@@ -6,11 +6,6 @@ from oculus_reader.reader import OculusReader
 from scipy.spatial.transform import Rotation as R
 
 
-def cross_product(vec1, vec2):
-    mat = np.array(([0, -vec1[2], vec1[1]], [vec1[2], 0, -vec1[0]], [-vec1[1], vec1[0], 0]))
-    return np.dot(mat, vec2)
-
-
 def rmat_to_quat(rot_mat, degrees=False):
     quat = R.from_matrix(rot_mat).as_quat()
     return quat
@@ -19,93 +14,6 @@ def rmat_to_quat(rot_mat, degrees=False):
 def quat_diff(target, source):
     result = R.from_quat(target) * R.from_quat(source).inv()
     return result.as_quat()
-
-
-def quat2mat(quat):
-    return R.from_quat(quat).as_matrix()
-
-
-def quat_multiply(quaternion1, quaternion0):
-    """Return multiplication of two quaternions.
-    >>> q = quat_multiply([1, -2, 3, 4], [-5, 6, 7, 8])
-    >>> np.allclose(q, [-44, -14, 48, 28])
-    True
-    """
-    x0, y0, z0, w0 = np.split(quaternion0, 4, axis=-1)  # (..., 1) for each
-    x1, y1, z1, w1 = np.split(quaternion1, 4, axis=-1)
-    return np.concatenate(
-        [
-            x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0,  # (..., 1)
-            -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0,
-            x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0,
-            -x1 * x0 - y1 * y0 - z1 * z0 + w1 * w0,
-        ],
-        axis=-1,
-    )
-
-
-def axisangle2quat(vec):
-    """
-    Converts scaled axis-angle to quat.
-    Args:
-        vec (np.array): (ax,ay,az) axis-angle exponential coordinates
-    Returns:
-        np.array: (x,y,z,w) vec4 float angles
-    """
-    front_shape = list(vec.shape[:-1])
-    vec = vec.reshape(-1, 3)
-    # Grab angle
-    angle = np.linalg.norm(vec, axis=-1, keepdims=True)
-
-    q = np.zeros((vec.shape[0], 4))
-    zero_cond = np.isclose(angle, 0.0)
-
-    # make sure that axis is a unit vector
-    axis = np.divide(vec, angle, out=vec.copy(), where=~zero_cond)
-
-    q[..., 3:] = np.cos(angle / 2.0)
-    q[..., :3] = axis * np.sin(angle / 2.0)
-
-    # handle zero-rotation case
-    q = np.where(zero_cond, np.array([0.0, 0.0, 0.0, 1.0]), q)
-
-    return q.reshape([*front_shape, 4])
-
-
-def quat2axisangle(quat):
-    """
-    Converts quaternion to axis-angle format.
-    Returns a unit vector direction scaled by its angle in radians.
-    Args:
-        quat (np.array): (x,y,z,w) vec4 float angles
-    Returns:
-        np.array: (ax,ay,az) axis-angle exponential coordinates
-    """
-    # clip quaternion
-    quat[..., 3] = np.where(quat[..., 3] > 1, 1.0, quat[..., 3])
-    quat[..., 3] = np.where(quat[..., 3] < -1, -1.0, quat[..., 3])
-
-    den = np.sqrt(1.0 - quat[..., 3] * quat[..., 3])
-    zero_cond = np.isclose(den, 0.0)
-
-    scale = np.divide(1.0, den, out=np.zeros_like(den), where=~zero_cond)
-
-    return (quat[..., :3] * 2.0 * np.arccos(quat[..., 3])) * scale
-
-
-def orientation_error(desired, current):
-    """
-    Optimized function to determine orientation error from matrices
-    """
-
-    rc1 = current[0:3, 0]
-    rc2 = current[0:3, 1]
-    rc3 = current[0:3, 2]
-    rd1 = desired[0:3, 0]
-    rd2 = desired[0:3, 1]
-    rd3 = desired[0:3, 2]
-
-    return 0.5 * (cross_product(rc1, rd1) + cross_product(rc2, rd2) + cross_product(rc3, rd3))
 
 
 class VRController(object):
@@ -229,23 +137,23 @@ class VRController(object):
             self.vr_origin = {"pos": self.vr_state["pos"], "quat": self.vr_state["quat"]}
             self.reset_origin = False
 
-        # Action computations
-        hand_pos_offset = ee_pos - self.robot_origin["pos"]
+        # Position computations
+        robot_pos_offset = ee_pos - self.robot_origin["pos"]
         target_pos_offset = self.vr_state["pos"] - self.vr_origin["pos"]
-        pos_action = target_pos_offset - hand_pos_offset
-
-        target_quat_offset = quat_diff(self.vr_state["quat"], self.vr_origin["quat"])
-        target_quat_offset = axisangle2quat(quat2axisangle(target_quat_offset))
-        desired_quat = quat_multiply(target_quat_offset, self.robot_origin["quat"])
-
+        pos_action = target_pos_offset - robot_pos_offset
         scale_pos_action = pos_action * self.pos_action_gain
-        delta_euler = orientation_error(quat2mat(desired_quat), quat2mat(ee_quat)) * self.rot_action_gain
-        command = np.concatenate([scale_pos_action, delta_euler])
 
+        # Rotation computations
+        robot_quat_offset = quat_diff(ee_quat, self.robot_origin["quat"])
+        target_quat_offset = quat_diff(self.vr_state["quat"], self.vr_origin["quat"])
+        quat_action = quat_diff(target_quat_offset, robot_quat_offset)
+        euler_action = R.from_quat(quat_action).as_euler("xyz")
+        scale_euler_action = euler_action * self.rot_action_gain
+
+        # Gripper action
         gripper_action = np.array([(self.vr_state["gripper"]) * self.gripper_action_gain])
-        command = np.concatenate((command, gripper_action))
 
-        return command
+        return np.concatenate((scale_pos_action, scale_euler_action, gripper_action))
 
     def get_info(self):
         return {

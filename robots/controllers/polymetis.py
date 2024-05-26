@@ -55,7 +55,7 @@ class PolyMetisController(Controller):
         ip_address: str = "localhost",
         max_cartesian_delta: float = 0.05,
         max_orientation_delta: float = 0.2,
-        workspace: List[List[float]] = [[0.1, -0.4, -0.05], [1.0, 0.4, 1.0]],
+        workspace: List[List[float]] = ((0.1, -0.4, -0.05), (1.0, 0.4, 1.0)),
     ):
         self.ip_address = ip_address
         self.workspace = np.array(workspace)
@@ -107,9 +107,7 @@ class PolyMetisController(Controller):
                 "joint_vel": gym.spaces.Box(
                     low=-np.inf * self.JOINT_LOW, high=np.inf * self.JOINT_HIGH, dtype=np.float32
                 ),
-                "ee_pos": gym.spaces.Box(
-                    low=self.workspace[0], high=self.workspace[1], dtype=np.float32
-                ),
+                "ee_pos": gym.spaces.Box(low=self.workspace[0], high=self.workspace[1], dtype=np.float32),
                 "ee_quat": gym.spaces.Box(low=-np.ones(4), high=np.ones(4), dtype=np.float32),
                 "gripper_pos": gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float32),
             }
@@ -142,9 +140,7 @@ class PolyMetisController(Controller):
 
     def update_gripper(self, gripper_action, blocking=False):
         # We always run the gripper in absolute position
-        self.gripper.goto(
-            width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.1, blocking=blocking
-        )
+        self.gripper.goto(width=self._max_gripper_width * (1 - gripper_action), speed=0.1, force=0.1, blocking=blocking)
         return gripper_action
 
     def update(self, action: np.ndarray, controller_type: str):
@@ -155,7 +151,7 @@ class PolyMetisController(Controller):
         # Load values that will be used globally
         messages = []
         euler_delta_action_space = self.action_spaces["CARTESIAN_EULER_DELTA"]
-        euler_impedance_action_space = self.action_spaces['CARTESIAN_EULER_IMPEDANCE']
+        euler_impedance_action_space = self.action_spaces["CARTESIAN_EULER_IMPEDANCE"]
 
         # Special case: If we are in Cartesian-Euler-Delta mode,
         # clip the action coordinate-wise
@@ -203,11 +199,12 @@ class PolyMetisController(Controller):
                 ee_pos_delta_desired = ee_pos_desired - self.state["ee_pos"]
                 ee_rot_delta_desired = Rotation.from_quat(self.state["ee_quat"]).inv() * ee_rot_desired
             elif controller_type == "CARTESIAN_EULER_DELTA":
-                ee_pos_delta_desired, ee_rot_delta_desired = robot_action[:3], Rotation.from_euler(
-                    "xyz", robot_action[3:]
+                ee_pos_delta_desired, ee_rot_delta_desired = (
+                    robot_action[:3],
+                    Rotation.from_euler("xyz", robot_action[3:]),
                 )
                 ee_pos_desired = self.state["ee_pos"] + ee_pos_delta_desired
-                ee_rot_desired = Rotation.from_quat(self.state["ee_quat"]) * ee_rot_delta_desired
+                ee_rot_desired = ee_rot_delta_desired * Rotation.from_quat(self.state["ee_quat"])
 
             # Compute joint_pos_desired and joint_delta_desired
             joint_pos_desired, ik_success = self.robot.solve_inverse_kinematics(
@@ -241,7 +238,8 @@ class PolyMetisController(Controller):
         if not np.allclose(ee_pos_euler_desired, clipped_ee_pos_euler_desired):
             messages.append("workspace_constraints_violated")
             desired_actions, new_message = self.update(
-                np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]), controller_type="CARTESIAN_EULER_IMPEDANCE"
+                np.concatenate([clipped_ee_pos_euler_desired, gripper_pos_desired]),
+                controller_type="CARTESIAN_EULER_IMPEDANCE",
             )
             if new_message is not None:
                 messages.append(new_message)
@@ -389,6 +387,8 @@ class PolyMetisController(Controller):
                 return fn
         elif fn_name.startswith("robot."):
             out = getattr(self.robot, fn_name.replace("robot.", ""))(*args, **kwargs)
-            if isinstance(out, torch.Tensor) or (isinstance(out, list) and len(out) > 0 and isinstance(out[0], torch.Tensor)):
+            if isinstance(out, torch.Tensor) or (
+                isinstance(out, list) and len(out) > 0 and isinstance(out[0], torch.Tensor)
+            ):
                 out = np.array(out)
             return out

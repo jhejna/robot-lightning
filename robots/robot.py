@@ -105,7 +105,12 @@ class RobotEnv(gym.Env):
 
         self._steps += 1
         terminated = self.horizon is not None and self._steps == self.horizon
-        info = dict(discount=1 - float(terminated), desired_action=desired_action, achieved_action=achieved_action, action_message=action_message)
+        info = dict(
+            discount=1 - float(terminated),
+            desired_action=desired_action,
+            achieved_action=achieved_action,
+            action_message=action_message,
+        )
 
         if info["action_message"] != "":
             print(f"[robots] {info['action_message']}")
