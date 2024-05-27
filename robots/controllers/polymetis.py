@@ -45,8 +45,8 @@ class PolyMetisController(Controller):
     JOINT_LOW = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, 0.5445, -3.0159], dtype=np.float32)
     JOINT_HIGH = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159], dtype=np.float32)
 
-    JOINT_DELTA_LOW = 1 / 4.1 * np.array([-2, -1, -1.5, -1.25, -3, -1.5, -3])
-    JOINT_DELTA_HIGH = 1 / 4.1 * np.array([2, 1, 1.5, 1.25, 3, 1.5, 3])
+    JOINT_DELTA_LOW = 1 / 3 * np.array([-2, -1, -1.5, -1.25, -3, -1.5, -3])
+    JOINT_DELTA_HIGH = 1 / 3 * np.array([2, 1, 1.5, 1.25, 3, 1.5, 3])
 
     HOME = np.array([0.0, -np.pi / 4.0, 0.0, -3.0 * np.pi / 4.0, 0.0, np.pi / 2.0, 0], dtype=np.float32)
 
