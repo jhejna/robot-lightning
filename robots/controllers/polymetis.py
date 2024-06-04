@@ -157,23 +157,15 @@ class PolyMetisController(Controller):
         return self.state
 
     def reset(self, randomize: bool = True):
-        if not self.robot.is_running_policy():
-            if self.controller_type == "JOINT_IMPEDANCE":
-                self.robot.start_joint_impedance()
-            elif self.controller_type == "CARTESIAN_IMPEDANCE":
-                self.robot.start_cartesian_impedance()
-            elif self.controller_type == "JOINT_DELTA":
-                self.robot.start_joint_impedance()
-            elif self.controller_type == "CARTESIAN_DELTA":
-                self.robot.start_cartesian_impedance()
-            else:
-                raise ValueError("Invalid Controller type provided")
+        if self.robot.is_running_policy():
+            self.robot.terminate_current_policy()
 
         # Open the gripper
         self.update_gripper(0, blocking=True)
 
         # Use a special way of resetting the controller which executes a joint space plan.
         # this is more robust than the original way of doing it.
+        self.robot.start_joint_impedance()
         waypoints = self.robot.move_to_joint_positions(self.HOME, return_plan_only=True)
         joint_positions = np.concatenate([waypoints[::100], waypoints[-1:]])
         print("[robots] executing reset plan")
@@ -200,5 +192,19 @@ class PolyMetisController(Controller):
             noise = np.random.uniform(low=-high, high=high)
             randomized_joint_positions = np.array(joint_positions, dtype=np.float32) + noise
             self.robot.move_to_joint_positions(torch.from_numpy(randomized_joint_positions))
+
+        if self.robot.is_running_policy():
+            self.robot.terminate_current_policy()
+
+        if self.controller_type == "JOINT_IMPEDANCE":
+            self.robot.start_joint_impedance()
+        elif self.controller_type == "CARTESIAN_IMPEDANCE":
+            self.robot.start_cartesian_impedance()
+        elif self.controller_type == "JOINT_DELTA":
+            self.robot.start_joint_impedance()
+        elif self.controller_type == "CARTESIAN_DELTA":
+            self.robot.start_cartesian_impedance()
+        else:
+            raise ValueError("Invalid Controller type provided")
 
         return  # Return nothing since we are the controller.
