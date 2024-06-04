@@ -1,7 +1,7 @@
+import time
 from functools import cached_property
 
 import gym
-import time
 import numpy as np
 
 from .controller import Controller
@@ -157,15 +157,41 @@ class PolyMetisController(Controller):
         return self.state
 
     def reset(self, randomize: bool = True):
-        if self.robot.is_running_policy():
-            self.robot.terminate_current_policy()
-        self.update_gripper(0, blocking=True)  # Close the gripper
-        print("resetting")
-        self.robot.go_home()
-        time.sleep(3.0)
-        # self.robot.go_home(time_to_go=8.0)
-        # self.robot.go_home(time_to_go=8.0)
-        # self.robot.go_home(time_to_go=10.0, timeout=20, blocking=True)
+        if not self.robot.is_running_policy():
+            if self.controller_type == "JOINT_IMPEDANCE":
+                self.robot.start_joint_impedance()
+            elif self.controller_type == "CARTESIAN_IMPEDANCE":
+                self.robot.start_cartesian_impedance()
+            elif self.controller_type == "JOINT_DELTA":
+                self.robot.start_joint_impedance()
+            elif self.controller_type == "CARTESIAN_DELTA":
+                self.robot.start_cartesian_impedance()
+            else:
+                raise ValueError("Invalid Controller type provided")
+
+        # Open the gripper
+        self.update_gripper(0, blocking=True)
+
+        # Use a special way of resetting the controller which executes a joint space plan.
+        # this is more robust than the original way of doing it.
+        waypoints = self.robot.move_to_joint_positions(self.HOME, return_plan_only=True)
+        joint_positions = np.concatenate([waypoints[::100], waypoints[-1:]])
+        print("[robots] executing reset plan")
+        self.robot.start_joint_impedance()
+        time.sleep(1)
+        _time = time.time()
+        for joint_pos in joint_positions:
+            if not self.robot.is_running_policy():
+                # We have probably reached a safety error
+                print("[robots] Policy stopped, exiting early")
+                break
+            self.robot.update_desired_joint_positions(torch.from_numpy(joint_pos))
+
+            # Sleep for an interval
+            time.sleep(max(_time + 1 / 10 - time.time(), 0))
+
+        print("[robots] Done resetting")
+
         if randomize:
             # Get the current position and then add some noise to it
             joint_positions = self.robot.get_joint_positions()
@@ -175,13 +201,4 @@ class PolyMetisController(Controller):
             randomized_joint_positions = np.array(joint_positions, dtype=np.float32) + noise
             self.robot.move_to_joint_positions(torch.from_numpy(randomized_joint_positions))
 
-        if self.controller_type == "JOINT_IMPEDANCE":
-            self.robot.start_joint_impedance()
-        elif self.controller_type == "CARTESIAN_IMPEDANCE":
-            self.robot.start_cartesian_impedance()
-        elif self.controller_type == "JOINT_DELTA":
-            self.robot.start_joint_impedance()
-        elif self.controller_type == "CARTESIAN_DELTA":
-            self.robot.start_cartesian_impedance()
-        else:
-            raise ValueError("Invalid Controller type provided")
+        return  # Return nothing since we are the controller.
